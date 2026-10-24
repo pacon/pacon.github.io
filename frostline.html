@@ -65,13 +65,32 @@ canvas{display:block;max-width:100%;touch-action:none}
 .overlay.peek{background:transparent;align-items:flex-end;pointer-events:none}
 .overlay.peek .card{display:none}
 .overlay.peek .peekbar{display:flex;pointer-events:auto}
-.pad{display:none;justify-content:center;gap:16px;align-items:center}
-@media (pointer:coarse){.pad{display:flex}}
-.pad .grid{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,52px);gap:6px}
-.pad button{font:600 20px var(--body);color:var(--ice);background:var(--panel);border:1px solid var(--line);border-radius:10px;touch-action:none}
-.pad button:active{background:var(--line)}
-.pad .u{grid-column:2} .pad .l{grid-column:1;grid-row:2} .pad .d{grid-column:2;grid-row:2} .pad .r{grid-column:3;grid-row:2}
-.pad .job{font-size:14px;padding:0 14px;height:52px}
+.stage{display:flex;flex-direction:column;gap:14px;min-width:0}
+.side-col{display:flex;flex-direction:column;gap:10px;min-width:0}
+.touchbar{display:none;flex-wrap:wrap;gap:8px}
+.touchbar .btn{flex:1 1 auto}
+.rotate{display:none;margin:0;color:var(--muted);font-size:13px}
+.card .acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+@media (pointer:coarse){.touchbar{display:flex} .keys{display:none}}
+@media (pointer:coarse) and (orientation:portrait){.rotate{display:block}}
+/* Phone held sideways: the board takes the full height, HUD and buttons move to a slim column beside it. */
+@media (pointer:coarse) and (orientation:landscape){
+  body{padding-block:max(8px,env(safe-area-inset-top,0px)) max(8px,env(safe-area-inset-bottom,0px))}
+  .wrap{max-width:none}
+  header,.note{display:none}
+  .stage{flex-direction:row;align-items:flex-start;gap:10px}
+  .side-col{width:172px;flex:none;gap:6px}
+  .hud{grid-template-columns:1fr;gap:6px}
+  .cell{padding:4px 8px;gap:2px}
+  .lab{font-size:10px;letter-spacing:.06em}
+  .lab.plain{display:none}
+  .val{font-size:13px}
+  .bar{height:6px}
+  .slot{width:14px;height:14px}
+  .touchbar{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .touchbar .btn{padding:5px 4px;font-size:11.5px;white-space:nowrap}
+  .board{flex:1;min-width:0}
+}
 details{background:var(--panel);border:1px solid var(--line);border-radius:8px}
 summary{cursor:pointer;padding:10px 12px;font-weight:600;display:flex;justify-content:space-between;gap:12px;list-style:none}
 summary::-webkit-details-marker{display:none}
@@ -96,33 +115,35 @@ button:focus-visible,summary:focus-visible,input:focus-visible,canvas:focus-visi
     <div class="side">
       <div class="keys">
         <span><kbd>WASD</kbd>/<kbd>↑↓←→</kbd> move · push to dig, chop, feed</span>
-        <span><kbd>Space</kbd> change a worker's job</span>
+        <span>or drag on the board to steer</span>
+        <span><kbd>Space</kbd> or click a worker to change their job</span>
         <span><kbd>M</kbd> sound · <kbd>Esc</kbd> pause · <kbd>R</kbd> restart</span>
       </div>
       <button class="btn" id="muteBtn" type="button">Sound on</button>
     </div>
   </header>
 
+  <p class="rotate">Turn your phone sideways for a bigger board.</p>
+  <div class="stage">
+  <div class="side-col">
   <div class="hud">
     <div class="cell" id="fuelCell"><div class="lab">Fire <span id="fuelTxt"></span></div><div class="val" id="fuelVal">20 / 100</div><div class="bar"><i id="fuelBar"></i></div></div>
     <div class="cell" id="stormCell"><div class="lab" id="stormLab">Next storm</div><div class="val" id="stormVal">55s</div><div class="lab plain" id="stormSub">Storm 1 of 2</div></div>
     <div class="cell"><div class="lab">Carrying <span id="carryN">0/5</span></div><div class="slots" id="slots"></div><div class="lab plain" id="carryFuel">+0 fuel</div></div>
     <div class="cell"><div class="lab">Your cold <span id="survTxt">0/3 rescued</span></div><div class="val" id="coldVal">0%</div><div class="bar"><i id="coldBar"></i></div></div>
   </div>
+  <div class="touchbar" aria-label="Touch controls">
+    <button class="btn" id="steerBtn" type="button">Steer: finger</button>
+    <button class="btn" id="pauseBtn" type="button">Pause</button>
+    <button class="btn" id="fsBtn" type="button">Full screen</button>
+    <button class="btn" id="muteBtn2" type="button">Sound on</button>
+  </div>
+  </div>
 
   <div class="board" id="board">
     <canvas id="cv"></canvas>
     <div class="overlay" id="ov"></div>
   </div>
-
-  <div class="pad" aria-label="On-screen controls">
-    <div class="grid">
-      <button class="u" data-d="up" aria-label="Up">▲</button>
-      <button class="l" data-d="left" aria-label="Left">◀</button>
-      <button class="d" data-d="down" aria-label="Down">▼</button>
-      <button class="r" data-d="right" aria-label="Right">▶</button>
-    </div>
-    <button class="job" id="jobBtn" type="button">Job</button>
   </div>
 
   <details id="tuneBox">
@@ -231,7 +252,7 @@ function setMuted(m) {
   AU.muted = m;
   try { localStorage.setItem('frostline-mute', m ? '1' : '0'); } catch (e) {}
   if (AU.master) AU.master.gain.setTargetAtTime(m ? 0 : 0.8, AU.ctx.currentTime, 0.05);
-  $('muteBtn').textContent = m ? 'Sound off' : 'Sound on';
+  $('muteBtn').textContent = $('muteBtn2').textContent = m ? 'Sound off' : 'Sound on';
 }
 function outNode(pan) {
   const a = AU.ctx;
@@ -388,12 +409,88 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => { if (KEYS[e.key]) release(KEYS[e.key]); });
 addEventListener('blur', () => held.clear());
-document.querySelectorAll('.pad [data-d]').forEach(b => {
-  b.addEventListener('pointerdown', e => { e.preventDefault(); press(b.dataset.d); });
-  ['pointerup','pointerleave','pointercancel'].forEach(ev => b.addEventListener(ev, () => release(b.dataset.d)));
+for (const id of ['muteBtn', 'muteBtn2']) $(id).addEventListener('click', e => { audioStart(); setMuted(!AU.muted); e.currentTarget.blur(); });
+
+// Pointer and touch: hold a finger (or the mouse button) on the board and the leader walks toward it, digging as
+// they go, so sliding your finger carves a path. On touch the aim point sits a little above the fingertip so your
+// finger doesn't hide it. Tapping a worker changes their job. "Joystick" mode instead puts a stick wherever you touch.
+const touch = {id: null, mode: null, type: 'mouse', x: 0, y: 0, px: 0, py: 0, spx: 0, spy: 0, moved: false, worker: null};
+let steerMode = 'finger';
+try { steerMode = localStorage.getItem('frostline-steer') === 'stick' ? 'stick' : 'finger'; } catch (e) {}
+const AIM_UP = 0.7;
+function boardPt(e) {
+  const r = cv.getBoundingClientRect(), k = W*T/r.width;
+  return {x: (e.clientX - r.left)/r.width*W, y: (e.clientY - r.top)/r.height*H, px: (e.clientX - r.left)*k, py: (e.clientY - r.top)*k};
+}
+function workerAt(x, y) {
+  let best = null, bd = 0.65;
+  for (const s of G.surv) {
+    if (s.state === 'dead' || s.state === 'buried') continue;
+    const d = Math.hypot(s.x - x, s.y - 0.15 - y);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+cv.addEventListener('pointerdown', e => {
+  if (touch.id !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  e.preventDefault(); audioStart();
+  if (G.phase === 'ready') start();
+  if (G.phase !== 'play') return;
+  const p = boardPt(e);
+  Object.assign(touch, {id: e.pointerId, type: e.pointerType, x: p.x, y: p.y, px: p.px, py: p.py, spx: p.px, spy: p.py, moved: false});
+  touch.worker = workerAt(p.x, p.y);
+  touch.mode = touch.worker ? 'tap' : steerMode === 'stick' ? 'stick' : 'steer';
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
 });
-$('jobBtn').addEventListener('pointerdown', e => { e.preventDefault(); if (G.phase === 'play') cycleJob(); else start(); });
-$('muteBtn').addEventListener('click', e => { audioStart(); setMuted(!AU.muted); e.currentTarget.blur(); });
+cv.addEventListener('pointermove', e => {
+  if (e.pointerId !== touch.id) return;
+  const p = boardPt(e);
+  Object.assign(touch, {x: p.x, y: p.y, px: p.px, py: p.py});
+  if (Math.hypot(p.px - touch.spx, p.py - touch.spy) > 12) { touch.moved = true; if (touch.mode === 'tap') touch.mode = steerMode === 'stick' ? 'stick' : 'steer'; }
+});
+function endTouch(e) {
+  if (e.pointerId !== touch.id) return;
+  if (touch.mode === 'tap' && !touch.moved && G.phase === 'play') cycleJob(touch.worker);
+  touch.id = null; touch.mode = null;
+}
+cv.addEventListener('pointerup', endTouch);
+cv.addEventListener('pointercancel', endTouch);
+// Keyboard wins when held; otherwise finger steering or the joystick. Returns a unit direction and a 0..1 speed.
+function inputVector() {
+  let ix = (isHeld('right') ? 1 : 0) - (isHeld('left') ? 1 : 0), iy = (isHeld('down') ? 1 : 0) - (isHeld('up') ? 1 : 0), l = Math.hypot(ix, iy);
+  if (l) return [ix/l, iy/l, 1];
+  if (touch.mode === 'steer') {
+    const L = G.leader, dx = touch.x - L.x, dy = touch.y - (touch.type === 'touch' ? AIM_UP : 0) - L.y;
+    l = Math.hypot(dx, dy);
+    return l < 0.12 ? [0, 0, 0] : [dx/l, dy/l, clamp((l - 0.12)/0.5, 0.25, 1)];
+  }
+  if (touch.mode === 'stick') {
+    const dx = touch.px - touch.spx, dy = touch.py - touch.spy;
+    l = Math.hypot(dx, dy);
+    return l < 8 ? [0, 0, 0] : [dx/l, dy/l, clamp(l/50, 0.2, 1)];
+  }
+  return [0, 0, 0];
+}
+$('ov').addEventListener('pointerdown', e => { if (G.phase === 'ready' && !e.target.closest('button')) { e.preventDefault(); start(); } });
+$('steerBtn').addEventListener('click', e => {
+  steerMode = steerMode === 'finger' ? 'stick' : 'finger';
+  try { localStorage.setItem('frostline-steer', steerMode); } catch (err) {}
+  e.currentTarget.textContent = steerMode === 'finger' ? 'Steer: finger' : 'Steer: joystick';
+});
+$('steerBtn').textContent = steerMode === 'finger' ? 'Steer: finger' : 'Steer: joystick';
+$('pauseBtn').addEventListener('click', () => { if (G.phase === 'play') G.phase = 'paused'; else if (G.phase === 'paused') G.phase = 'play'; showOverlay(); });
+{
+  const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!req || !(document.fullscreenEnabled || document.webkitFullscreenEnabled)) $('fsBtn').hidden = true;
+  $('fsBtn').addEventListener('click', () => {
+    if (document.fullscreenElement || document.webkitFullscreenElement) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+    try {
+      const r = req.call(el);
+      if (r && r.then) r.then(() => { try { screen.orientation.lock('landscape').catch(() => {}); } catch (err) {} }).catch(() => { $('fsBtn').hidden = true; });
+    } catch (err) { $('fsBtn').hidden = true; }
+  });
+}
+addEventListener('resize', () => resize());
 
 // ---------- feedback ----------
 function float(x, y, text, color) { G.floats.push({x, y, text, color, life: 1.1}); }
@@ -559,11 +656,10 @@ function trailAt(dist) {
 // ---------- the leader ----------
 function updateLeader(dt) {
   const L = G.leader, F = G.fire;
-  let ix = (isHeld('right') ? 1 : 0) - (isHeld('left') ? 1 : 0), iy = (isHeld('down') ? 1 : 0) - (isHeld('up') ? 1 : 0);
-  const il = Math.hypot(ix, iy);
-  if (il) { ix /= il; iy /= il; L.dx = ix; L.dy = iy; }
+  const [ix, iy, mag] = inputVector(), il = mag > 0;
+  if (il) { L.dx = ix; L.dy = iy; }
   const a = Math.min(1, dt*16);
-  L.vx += (ix*P.speed - L.vx)*a; L.vy += (iy*P.speed - L.vy)*a;
+  L.vx += (ix*P.speed*mag - L.vx)*a; L.vy += (iy*P.speed*mag - L.vy)*a;
   L.digging = Math.max(0, L.digging - dt);
 
   if (il) {
@@ -641,10 +737,10 @@ function updateLeader(dt) {
 // ---------- workers ----------
 // A thawed survivor is a worker. Space next to one cycles idle → hauler → stoker → digger. Everything else
 // is up to them, including when to come in from the cold, which depends on their hidden courage.
-function cycleJob() {
+function cycleJob(picked) {
   const L = G.leader;
-  let best = null, bd = 1.15;
-  for (const s of G.surv) {
+  let best = picked || null, bd = 1.15;
+  if (!picked) for (const s of G.surv) {
     if (s.state === 'dead' || (s.state === 'buried' && !s.visible)) continue;
     const d = Math.hypot(s.x - L.x, s.y - L.y);
     if (d < bd) { bd = d; best = s; }
@@ -932,7 +1028,9 @@ function rebuildBand(b) {
 }
 function resize() {
   const w = $('board').clientWidth - 2;
-  T = Math.max(14, Math.min(44, Math.floor(w / W)));
+  let tw = Math.floor(w / W);
+  if (matchMedia('(pointer:coarse) and (orientation:landscape)').matches) tw = Math.min(tw, Math.floor((window.innerHeight - 18)/H));
+  T = Math.max(14, Math.min(44, tw));
   dpr = window.devicePixelRatio || 1;
   HU = T*0.11; RISE = Math.ceil(HU*3 + T/S + T*0.06 + 3); SH = Math.ceil(T*0.6);
   for (const c of [cv, coldCv, maskCv, groundCv]) { c.width = W*T*dpr; c.height = H*T*dpr; }
@@ -1206,6 +1304,19 @@ function render(now) {
   }
   ctx.globalAlpha = 1;
 
+  // Where the finger is steering, or the joystick under the thumb.
+  if (G.phase === 'play' && touch.mode === 'steer') {
+    const ax = touch.x*T, ay = (touch.y - (touch.type === 'touch' ? AIM_UP : 0))*T;
+    ctx.strokeStyle = 'rgba(255,196,107,0.85)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(ax, ay, T*0.22, 0, 7); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,196,107,0.85)'; ctx.beginPath(); ctx.arc(ax, ay, 2.5, 0, 7); ctx.fill();
+  } else if (G.phase === 'play' && touch.mode === 'stick') {
+    const dx = touch.px - touch.spx, dy = touch.py - touch.spy, l = Math.hypot(dx, dy), k = l > 50 ? 50/l : 1;
+    ctx.fillStyle = 'rgba(18,28,46,0.45)'; ctx.strokeStyle = 'rgba(226,236,245,0.4)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(touch.spx, touch.spy, 50, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,196,107,0.8)'; ctx.beginPath(); ctx.arc(touch.spx + dx*k, touch.spy + dy*k, 18, 0, 7); ctx.fill();
+  }
+
   if (G.showHeat && G.phase === 'over') drawHeat();
 }
 // Where the leader spent their time: one warm hue, brighter with more time, on a darkened board.
@@ -1303,13 +1414,19 @@ function showOverlay() {
   ov.className = 'overlay';
   if (G.phase === 'play') { ov.hidden = true; return; }
   ov.hidden = false;
+  $('pauseBtn').textContent = G.phase === 'paused' ? 'Resume' : 'Pause';
   if (G.phase === 'ready') {
+    const touchy = matchMedia('(pointer:coarse)').matches;
     ov.innerHTML = `<div class="card"><h2>First Night</h2>
       <p>The fire is down to ${P.startFuel}%. Someone is freezing just west of it. A storm hits in ${P.storm1} seconds.</p>
-      <p class="hint">Push into snow to shovel through it, into trees to chop, into the fire to feed it. Hold two keys to dig diagonally. Bring dug-out survivors into the warmth; once thawed, stand next to one and press Space to give them a job.</p>
-      <p class="go">Press an arrow key or WASD to start</p></div>`;
+      <p class="hint">${touchy
+        ? 'Hold a finger on the board and you walk toward it, shovelling through snow on the way. Slide it to carve a path. Walk into trees to chop and into the fire to feed it. Once a survivor has thawed, tap them to give them a job.'
+        : 'Push into snow to shovel through it, into trees to chop, into the fire to feed it. Hold two keys to dig diagonally, or drag on the board to steer. Once a survivor has thawed, press Space next to them or click them to give them a job.'}</p>
+      <p class="go">${touchy ? 'Tap to start' : 'Press an arrow key or WASD to start'}</p></div>`;
   } else if (G.phase === 'paused') {
-    ov.innerHTML = `<div class="card"><h2>Paused</h2><p class="go">Esc to resume · R to restart</p></div>`;
+    ov.innerHTML = `<div class="card"><h2>Paused</h2><div class="acts"><button class="btn" id="resumeBtn" type="button">Resume (Esc)</button><button class="btn" id="restartOv" type="button">Restart (R)</button></div></div>`;
+    $('resumeBtn').addEventListener('click', () => { G.phase = 'play'; showOverlay(); });
+    $('restartOv').addEventListener('click', () => newGame());
   } else {
     const r = G.result;
     ov.classList.add(r.win ? 'win' : 'lose');
@@ -1323,9 +1440,8 @@ function showOverlay() {
         <div class="stat"><span>Rescued</span><b>${r.rescued}/${r.total}${r.lost ? ` · ${r.lost} lost` : ''}</b></div>
       </div>
       <div class="chartbox"><div class="ct"><span>Fire fuel over the night</span><span>0–100</span></div><canvas id="fuelChart" tabindex="0" aria-label="Line chart of fire fuel over time, ending at ${Math.round(r.fuel)}"></canvas></div>
-      <button class="btn" id="heatBtn" type="button">Show where you walked (H)</button>
-      ${r.win ? `<p class="hint">Stars: win · rescue everyone · finish with fuel above 50</p>` : ''}
-      <p class="go">Press R to play again</p></div>
+      <div class="acts"><button class="btn" id="heatBtn" type="button">Show where you walked (H)</button><button class="btn" id="againBtn" type="button">Play again (R)</button></div>
+      ${r.win ? `<p class="hint">Stars: win · rescue everyone · finish with fuel above 50</p>` : ''}</div>
       <div class="peekbar"><span>Where you walked · brighter means more time spent</span><button class="btn" id="heatBack" type="button">Back to results (H)</button></div>`;
     const ch = $('fuelChart');
     requestAnimationFrame(() => drawFuelChart(ch));
@@ -1333,6 +1449,7 @@ function showOverlay() {
     ch.addEventListener('pointerleave', () => drawFuelChart(ch));
     $('heatBtn').addEventListener('click', toggleHeat);
     $('heatBack').addEventListener('click', toggleHeat);
+    $('againBtn').addEventListener('click', () => newGame());
   }
 }
 
