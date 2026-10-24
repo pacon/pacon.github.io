@@ -1,0 +1,1375 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Frostline Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Figtree:wght@400;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: one frozen night screen. Title strip, HUD row, the board as the hero, tuning drawer under it. Single deliberate dark look. */
+:root{
+  --night:#0b1220; --panel:#121c2e; --line:#22314a; --ice:#e2ecf5; --muted:#8fa3bc;
+  --frost:#8cc4ef; --ember:#ff8a3d; --ember-hi:#ffc46b; --danger:#ff5f57; --good:#7fd6a0;
+  --display:'Bungee','Arial Black',Impact,sans-serif;
+  --body:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{background:var(--night);color:var(--ice)}
+body{font-family:var(--body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 20px}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,6vw,40px);line-height:1;margin:0;letter-spacing:.02em;color:var(--ice)}
+h1 span{color:var(--ember)}
+.sub{color:var(--muted);font-size:13px;margin:4px 0 0}
+.side{display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:0}
+.keys{font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px 14px}
+kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;color:var(--ice);background:var(--panel)}
+.hud{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:620px){.hud{grid-template-columns:repeat(2,minmax(0,1fr))} .side{align-items:flex-start} .keys{justify-content:flex-start}}
+.cell{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.lab{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.lab.plain{text-transform:none;letter-spacing:0}
+.val{font-family:var(--mono);font-weight:600;font-size:15px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar{height:8px;border-radius:4px;background:#0a1324;overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:4px}
+#fuelBar{background:linear-gradient(90deg,var(--ember),var(--ember-hi))}
+#coldBar{background:linear-gradient(90deg,var(--frost),#d8f0ff)}
+.low #fuelBar{background:var(--danger)}
+.storm .val{color:var(--frost)}
+.slots{display:flex;gap:4px;flex-wrap:wrap}
+.slot{width:18px;height:18px;border-radius:4px;border:1px solid var(--line);background:#0a1324}
+.slot.wood{background:#9b6a3c;border-color:#c48a52}
+.slot.coal{background:#1b1f27;border-color:#56627a;box-shadow:inset 0 0 0 2px #2d3442}
+.board{position:relative;display:flex;justify-content:center;border-radius:10px;overflow:hidden;background:#0a1120;border:1px solid var(--line)}
+canvas{display:block;max-width:100%;touch-action:none}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(7,12,22,.78);text-align:center;overflow:auto}
+.card{max-width:460px;width:100%;display:flex;flex-direction:column;gap:10px;align-items:center;margin:auto}
+.card h2{font-family:var(--display);font-weight:400;font-size:clamp(22px,4.5vw,30px);margin:0;line-height:1.1;text-wrap:balance}
+.card p{margin:0;color:var(--ice)}
+.card .hint{color:var(--muted);font-size:13px}
+.card .go{font-family:var(--mono);font-size:13px;color:var(--ember-hi)}
+.stars{font-size:30px;letter-spacing:6px;color:var(--ember-hi);line-height:1}
+.stars .off{color:#33405a}
+.win h2{color:var(--ember-hi)} .lose h2{color:var(--frost)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;width:100%}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;text-align:left;min-width:0;display:flex;flex-direction:column;gap:1px}
+.stat span{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.stat b{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:15px;font-weight:600;color:var(--ice);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chartbox{width:100%;text-align:left;display:flex;flex-direction:column;gap:4px}
+.chartbox .ct{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.chartbox canvas{width:100%;height:132px;border-radius:6px;background:var(--panel);border:1px solid var(--line);cursor:crosshair}
+.btn{font:600 13px var(--body);color:var(--ice);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer}
+.btn:hover{border-color:var(--ember)}
+.peekbar{display:none;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;background:rgba(7,12,22,.88);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--muted)}
+.overlay.peek{background:transparent;align-items:flex-end;pointer-events:none}
+.overlay.peek .card{display:none}
+.overlay.peek .peekbar{display:flex;pointer-events:auto}
+.pad{display:none;justify-content:center;gap:16px;align-items:center}
+@media (pointer:coarse){.pad{display:flex}}
+.pad .grid{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,52px);gap:6px}
+.pad button{font:600 20px var(--body);color:var(--ice);background:var(--panel);border:1px solid var(--line);border-radius:10px;touch-action:none}
+.pad button:active{background:var(--line)}
+.pad .u{grid-column:2} .pad .l{grid-column:1;grid-row:2} .pad .d{grid-column:2;grid-row:2} .pad .r{grid-column:3;grid-row:2}
+.pad .job{font-size:14px;padding:0 14px;height:52px}
+details{background:var(--panel);border:1px solid var(--line);border-radius:8px}
+summary{cursor:pointer;padding:10px 12px;font-weight:600;display:flex;justify-content:space-between;gap:12px;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary span{color:var(--muted);font-weight:400;font-size:13px}
+.tune{padding:4px 12px 14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px 20px}
+.tune label{display:flex;flex-direction:column;gap:2px;font-size:13px;min-width:0}
+.tune .row{display:flex;justify-content:space-between;gap:8px}
+.tune output{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--ember-hi)}
+.tune small{color:var(--muted)}
+input[type=range]{width:100%;accent-color:var(--ember)}
+.tools{padding:0 12px 14px;display:flex;gap:10px;flex-wrap:wrap}
+button:focus-visible,summary:focus-visible,input:focus-visible,canvas:focus-visible{outline:2px solid var(--ember-hi);outline-offset:2px}
+.note{color:var(--muted);font-size:13px;margin:0;max-width:65ch}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>FROST<span>LINE</span></h1>
+      <p class="sub">Prototype v0 · Level 1: First Night</p>
+    </div>
+    <div class="side">
+      <div class="keys">
+        <span><kbd>WASD</kbd>/<kbd>↑↓←→</kbd> move · push to dig, chop, feed</span>
+        <span><kbd>Space</kbd> change a worker's job</span>
+        <span><kbd>M</kbd> sound · <kbd>Esc</kbd> pause · <kbd>R</kbd> restart</span>
+      </div>
+      <button class="btn" id="muteBtn" type="button">Sound on</button>
+    </div>
+  </header>
+
+  <div class="hud">
+    <div class="cell" id="fuelCell"><div class="lab">Fire <span id="fuelTxt"></span></div><div class="val" id="fuelVal">20 / 100</div><div class="bar"><i id="fuelBar"></i></div></div>
+    <div class="cell" id="stormCell"><div class="lab" id="stormLab">Next storm</div><div class="val" id="stormVal">55s</div><div class="lab plain" id="stormSub">Storm 1 of 2</div></div>
+    <div class="cell"><div class="lab">Carrying <span id="carryN">0/5</span></div><div class="slots" id="slots"></div><div class="lab plain" id="carryFuel">+0 fuel</div></div>
+    <div class="cell"><div class="lab">Your cold <span id="survTxt">0/3 rescued</span></div><div class="val" id="coldVal">0%</div><div class="bar"><i id="coldBar"></i></div></div>
+  </div>
+
+  <div class="board" id="board">
+    <canvas id="cv"></canvas>
+    <div class="overlay" id="ov"></div>
+  </div>
+
+  <div class="pad" aria-label="On-screen controls">
+    <div class="grid">
+      <button class="u" data-d="up" aria-label="Up">▲</button>
+      <button class="l" data-d="left" aria-label="Left">◀</button>
+      <button class="d" data-d="down" aria-label="Down">▼</button>
+      <button class="r" data-d="right" aria-label="Right">▶</button>
+    </div>
+    <button class="job" id="jobBtn" type="button">Job</button>
+  </div>
+
+  <details id="tuneBox">
+    <summary>Tuning <span>Rates apply live · starting fuel and storm timing apply on restart</span></summary>
+    <div class="tune" id="tune"></div>
+    <div class="tools"><button class="btn" id="restartBtn" type="button">Restart level (R)</button><button class="btn" id="resetBtn" type="button">Reset to spec values</button></div>
+  </details>
+  <p class="note">v0 scope: one level with free movement and a shovel that carves through snow at any angle, carrying, fuel, cold, two storms that drift snow back into your paths, and survivors who thaw into workers. Workers take one of three jobs (hauler, stoker, digger) or stay idle, walk only on ground that has been dug, and each has a hidden nerve that decides how cold they let themselves get. Stars between levels, tools and ice are not in this build.</p>
+</div>
+
+<script>
+(() => {
+// ---------- level ----------
+// The map is authored as tiles (. : # = snow 1/2/3 deep, w W c = wood/wood/coal buried in 1/2/3,
+// x X = hidden caches of wood/coal with no surface clue, s = buried survivor, S = survivor half-buried and visible,
+// T tree, F fire, _ clear ground, L leader). At load it becomes a fine depth map the shovel carves continuously.
+const MAP = [
+  "c#::.T..:::..T.::#X#",
+  "#::.w....:....W..:##",
+  ":..W...:.......w..:#",
+  "..w...:..._....:...:",
+  "T....:...___...s....",
+  "..:...S.._F_L..:..w.",
+  "x...:....___...:..T.",
+  ":.....W...._.....::.",
+  "#:..s.......:..W..:#",
+  "##:...T..:..c....:##",
+  "c##::......w..::##W#",
+  "#c##:::..::..::###c#"
+];
+const W = 20, H = 12, S = 8, VW = W*S + 1, VH = H*S + 1;
+const BODY = 0.22;                // collision radius of a character, in tiles
+const SHOVEL = 0.42, CORE = 0.26; // dig radius and full-strength core; carved paths are ~0.6 tiles wide
+const NB = H*2, CPB = S/2;        // terrain is drawn in half-tile bands (CPB cell rows each) for depth sorting
+const LEVELS = [0.2, 0.5, 1.5, 2.5]; // dusting, then the three snow heights; walkable below 0.5
+const NS = 5, NW = W*NS, NH = H*NS; // navigation grid for workers, 5 cells per tile; also the heatmap grid
+const JOBS = ['idle', 'hauler', 'stoker', 'digger'];
+const JOB_LABEL = {idle: 'Idle', hauler: 'Hauler', stoker: 'Stoker', digger: 'Digger'};
+
+const DEF = {speed:4.2, dig:7, burn:1, chill:6, buriedChill:1.2, warm:25, wood:15, coal:40, carry:5, radius:6.5, refill:0.05, startFuel:20, storm1:55};
+const SPEC = [
+  ['speed','Walk speed','tiles/s',2,7,0.1],
+  ['dig','Dig rate','snow depth/s',2,15,0.5],
+  ['burn','Fuel burn','fuel/s',0.25,3,0.05],
+  ['chill','Chill outside warmth','cold/s',1,15,0.5],
+  ['buriedChill','Chill while fully buried','cold/s',0,5,0.1],
+  ['warm','Warm-up inside','cold/s',5,50,1],
+  ['wood','Wood value','fuel',5,40,1],
+  ['coal','Coal value','fuel',10,80,1],
+  ['carry','Carry limit','items',1,10,1],
+  ['radius','Warm radius at full fuel','tiles',3,10,0.5],
+  ['refill','Storm refills paths at','depth/s',0,0.3,0.01],
+  ['startFuel','Starting fuel','on restart',5,100,1],
+  ['storm1','First storm in','s, on restart',15,120,1],
+];
+let P = Object.assign({}, DEF);
+try { const s = JSON.parse(localStorage.getItem('frostline-tune') || 'null'); if (s) Object.assign(P, s); } catch (e) {}
+const save = () => { try { localStorage.setItem('frostline-tune', JSON.stringify(P)); } catch (e) {} };
+
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const coldCv = document.createElement('canvas'), cctx = coldCv.getContext('2d');
+const maskCv = document.createElement('canvas'), mctx = maskCv.getContext('2d');
+const groundCv = document.createElement('canvas'), gctx = groundCv.getContext('2d');
+let T = 40, dpr = 1, HU = 4, RISE = 16, SH = 24, bands = [], bandCursor = 0;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const bodyFont = () => getComputedStyle(document.documentElement).getPropertyValue('--body');
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const fmt = t => `${Math.floor(t/60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+const hash = (a, b, c) => { let h = Math.imul(a|0, 374761393) ^ Math.imul(b|0, 668265263) ^ Math.imul(c|0, 1442695041); h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; };
+const noise2 = (x, y, s) => {
+  const xi = Math.floor(x), yi = Math.floor(y); let fx = x - xi, fy = y - yi;
+  fx = fx*fx*(3 - 2*fx); fy = fy*fy*(3 - 2*fy);
+  const a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s);
+  const top = a + (b - a)*fx; return top + ((c + (d - c)*fx) - top)*fy;
+};
+function rng(seed) { return () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const hex = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+const mix = (a, b, t) => { const A = hex(a), B = hex(b); return `rgb(${A.map((v,i) => Math.round(v + (B[i]-v)*t)).join(',')})`; };
+const rr = (c, x, y, w, h, r) => { c.beginPath(); c.roundRect ? c.roundRect(x, y, w, h, r) : c.rect(x, y, w, h); };
+
+// ---------- audio (all synthesized; starts on the first key press) ----------
+const AU = {ctx: null, master: null, muted: false, wind: null, windF: null, fireG: null, digT: 0, wdigT: 0, crackT: 0};
+try { AU.muted = localStorage.getItem('frostline-mute') === '1'; } catch (e) {}
+function audioStart() {
+  if (AU.ctx) { if (AU.ctx.state === 'suspended') AU.ctx.resume().catch(() => {}); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  try { AU.ctx = new AC(); } catch (e) { return; }
+  const a = AU.ctx;
+  AU.master = a.createGain(); AU.master.gain.value = AU.muted ? 0 : 0.8; AU.master.connect(a.destination);
+  const buf = a.createBuffer(1, a.sampleRate*2, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random()*2 - 1;
+  AU.noise = buf;
+  const w = a.createBufferSource(); w.buffer = buf; w.loop = true;
+  AU.windF = a.createBiquadFilter(); AU.windF.type = 'bandpass'; AU.windF.frequency.value = 420; AU.windF.Q.value = 0.9;
+  AU.wind = a.createGain(); AU.wind.gain.value = 0;
+  w.connect(AU.windF).connect(AU.wind).connect(AU.master); w.start();
+  const f = a.createBufferSource(); f.buffer = buf; f.loop = true; f.playbackRate.value = 0.5;
+  const ff = a.createBiquadFilter(); ff.type = 'lowpass'; ff.frequency.value = 240;
+  AU.fireG = a.createGain(); AU.fireG.gain.value = 0;
+  f.connect(ff).connect(AU.fireG).connect(AU.master); f.start();
+}
+function setMuted(m) {
+  AU.muted = m;
+  try { localStorage.setItem('frostline-mute', m ? '1' : '0'); } catch (e) {}
+  if (AU.master) AU.master.gain.setTargetAtTime(m ? 0 : 0.8, AU.ctx.currentTime, 0.05);
+  $('muteBtn').textContent = m ? 'Sound off' : 'Sound on';
+}
+function outNode(pan) {
+  const a = AU.ctx;
+  if (pan && a.createStereoPanner) { const p = a.createStereoPanner(); p.pan.value = clamp(pan, -1, 1); p.connect(AU.master); return p; }
+  return AU.master;
+}
+function tone(freq, dur, o = {}) {
+  if (!AU.ctx || AU.muted) return;
+  const a = AU.ctx, t = a.currentTime + (o.delay || 0), osc = a.createOscillator(), g = a.createGain();
+  osc.type = o.type || 'sine'; osc.frequency.setValueAtTime(freq, t);
+  if (o.to) osc.frequency.exponentialRampToValueAtTime(o.to, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(o.vol || 0.2, t + (o.attack || 0.005)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  let node = osc;
+  if (o.lp) { const fl = a.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = o.lp; node.connect(fl); node = fl; }
+  node.connect(g).connect(outNode(o.pan)); osc.start(t); osc.stop(t + dur + 0.05);
+}
+function hiss(dur, o = {}) {
+  if (!AU.ctx || AU.muted) return;
+  const a = AU.ctx, t = a.currentTime + (o.delay || 0), src = a.createBufferSource(), fl = a.createBiquadFilter(), g = a.createGain();
+  src.buffer = AU.noise; fl.type = o.type || 'bandpass'; fl.frequency.setValueAtTime(o.freq || 1000, t); fl.Q.value = o.q || 1;
+  if (o.to) fl.frequency.exponentialRampToValueAtTime(o.to, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(o.vol || 0.2, t + (o.attack || 0.004)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(fl).connect(g).connect(outNode(o.pan)); src.start(t, Math.random()*1.5); src.stop(t + dur + 0.05);
+}
+const panOf = x => G ? clamp((x - G.leader.x)/8, -1, 1) : 0;
+const SFX = {
+  dig: () => { if (performance.now() - AU.digT < 110) return; AU.digT = performance.now(); hiss(0.1, {type: 'lowpass', freq: 700 + Math.random()*500, vol: 0.13}); },
+  wdig: x => { if (performance.now() - AU.wdigT < 260) return; AU.wdigT = performance.now(); hiss(0.08, {type: 'lowpass', freq: 600, vol: 0.05, pan: panOf(x)}); },
+  clunk: () => { tone(120, 0.2, {vol: 0.35, to: 70}); hiss(0.05, {freq: 1800, vol: 0.08}); },
+  chop: x => { tone(330, 0.09, {type: 'triangle', vol: 0.22, to: 170, pan: panOf(x)}); hiss(0.06, {freq: 2600, vol: 0.1, pan: panOf(x)}); },
+  feed: x => { hiss(0.55, {freq: 280, to: 2400, vol: 0.22, attack: 0.06, pan: panOf(x)}); for (let i = 0; i < 5; i++) hiss(0.03, {type: 'highpass', freq: 2500, vol: 0.12, delay: 0.1 + Math.random()*0.4}); },
+  pick: x => tone(660, 0.09, {type: 'triangle', vol: 0.1, to: 900, pan: panOf(x)}),
+  reveal: x => { tone(1320, 0.14, {vol: 0.05, pan: panOf(x)}); tone(1760, 0.16, {vol: 0.04, pan: panOf(x), delay: 0.07}); },
+  found: x => [523, 659, 784].forEach((f, i) => tone(f, 0.32, {type: 'triangle', vol: 0.11, pan: panOf(x), delay: i*0.08})),
+  call: (x, near) => tone(310, 0.5, {type: 'sawtooth', vol: 0.03 + 0.05*near, to: 230, lp: 650, attack: 0.06, pan: panOf(x)}),
+  rescued: x => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.35, {type: 'triangle', vol: 0.12, pan: panOf(x), delay: i*0.07})),
+  lost: x => { tone(392, 0.7, {type: 'triangle', vol: 0.14, to: 185, pan: panOf(x)}); tone(311, 0.8, {type: 'sine', vol: 0.08, to: 147, delay: 0.1}); },
+  job: i => { hiss(0.03, {type: 'highpass', freq: 3000, vol: 0.08}); tone([330, 440, 554, 659][i], 0.12, {type: 'square', vol: 0.05, lp: 2200}); },
+  full: () => tone(140, 0.16, {type: 'square', vol: 0.05, lp: 900}),
+  storm: () => hiss(2.8, {freq: 260, to: 900, vol: 0.28, attack: 0.9}),
+  win: () => [392, 523, 659, 784].forEach((f, i) => tone(f, 0.6, {type: 'triangle', vol: 0.12, delay: i*0.12})),
+  lose: () => [330, 262, 196].forEach((f, i) => tone(f, 0.7, {type: 'triangle', vol: 0.12, delay: i*0.18})),
+  out: () => tone(70, 0.4, {vol: 0.25, to: 50}),
+};
+function audioTick(dt) {
+  if (!AU.ctx || !G) return;
+  const a = AU.ctx, now = a.currentTime, si = G.phase === 'ready' ? {next: 99} : stormInfo();
+  let wind = 0.035;
+  if (si.active) wind = 0.2 + 0.08*Math.sin(G.t*1.7) + 0.05*Math.sin(G.t*4.3);
+  else if (si.next !== undefined && si.next < 15) wind = 0.035 + (1 - si.next/15)*0.1;
+  if (G.phase !== 'play') wind *= 0.6;
+  AU.wind.gain.setTargetAtTime(wind, now, 0.3);
+  AU.windF.frequency.setTargetAtTime(si.active ? 500 + 300*Math.sin(G.t*0.9) : 380 + 80*Math.sin(G.t*0.3), now, 0.4);
+  const fuel = G.fire.fuel;
+  AU.fireG.gain.setTargetAtTime(fuel > 0 ? 0.03 + fuel/100*0.16 : 0, now, 0.2);
+  if (!AU.muted && fuel > 0 && Math.random() < dt*(2 + fuel/100*16)) hiss(0.02 + Math.random()*0.02, {type: 'highpass', freq: 1800 + Math.random()*3000, vol: 0.04 + Math.random()*0.08, pan: panOf(G.fire.cx)});
+}
+
+// ---------- game state ----------
+let G, nextId = 1;
+const mob = (x, y, o) => Object.assign({id: nextId++, x, y, px: x, py: y, rx: x, ry: y, walk: 0, moving: false, dx: 0, dy: 1, cold: 0, digging: 0}, o);
+
+function buildField(tileD) {
+  // Warp the tile grid with noise so drift edges are organic, then soften with a small blur.
+  const raw = new Float32Array(VW*VH), f = new Float32Array(VW*VH);
+  for (let j = 0; j < VH; j++) for (let i = 0; i < VW; i++) {
+    const x = i/S, y = j/S;
+    const wx = x + (noise2(x*1.6, y*1.6, 11) - 0.5)*0.5, wy = y + (noise2(x*1.6, y*1.6, 23) - 0.5)*0.5;
+    raw[j*VW + i] = tileD[clamp(Math.floor(wy), 0, H - 1)*W + clamp(Math.floor(wx), 0, W - 1)];
+  }
+  for (let j = 0; j < VH; j++) for (let i = 0; i < VW; i++) {
+    let sum = 0, n = 0;
+    for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const ii = i + a, jj = j + b; if (ii >= 0 && jj >= 0 && ii < VW && jj < VH) { sum += raw[jj*VW + ii]; n++; } }
+    f[j*VW + i] = sum/n;
+  }
+  return f;
+}
+
+function newGame() {
+  const tileD = new Uint8Array(W*H), trees = [], items = [], surv = [];
+  let leader, fire;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const ch = MAP[y][x], cx = x + 0.5, cy = y + 0.5, j = k => hash(x, y, k) - 0.5;
+    const item = (kind, cache = false) => items.push(newItem(cx + j(1)*0.24, cy + j(2)*0.24, kind, {cache, rot: j(3)*1.2, glint: hash(x, y, 7), hidden: true}));
+    const person = o => surv.push(mob(cx, cy, Object.assign({
+      tell: ['mitten', 'scarf', 'hat'][surv.length % 3], puffT: hash(x, y, 8)*1.5, callT: 0, tremble: false, clunkT: -9,
+      courage: Math.random(), job: 'idle', path: null, planT: 0, gx: 0, gy: 0, stuck: 0, wanderT: 0, wgoal: null, carry: null, target: null, returning: false,
+    }, o)));
+    let d = 0;
+    if (ch === '.') d = 1;
+    else if (ch === ':') d = 2;
+    else if (ch === '#') d = 3;
+    else if (ch === 'w') { d = 1; item('wood'); }
+    else if (ch === 'W') { d = 2; item('wood'); }
+    else if (ch === 'c') { d = 3; item('coal'); }
+    else if (ch === 'x') { d = 1; item('wood', true); }
+    else if (ch === 'X') { d = 3; item('coal', true); }
+    else if (ch === 's') { d = 1; person({state: 'buried', visible: false}); }
+    else if (ch === 'S') { d = 1; person({state: 'buried', visible: true, cold: 35}); }
+    else if (ch === 'T') trees.push({x: cx + j(4)*0.2, y: cy + j(5)*0.12, hp: 3, s: 0.9 + hash(x, y, 6)*0.2, shake: 0});
+    else if (ch === 'F') fire = {cx, cy, fuel: P.startFuel};
+    else if (ch === 'L') leader = mob(cx, cy, {carry: [], vx: 0, vy: 0, chopT: 0.2, trail: []});
+    tileD[y*W + x] = d;
+  }
+  const field = buildField(tileD), drift = new Float32Array(VW*VH);
+  for (let j = 0; j < VH; j++) for (let i = 0; i < VW; i++) drift[j*VW + i] = 0.4 + noise2(i/S*0.9, j/S*0.9, 31)*1.2;
+  const s1 = P.storm1;
+  G = {field, base: field.slice(), drift, dirty: new Uint8Array(NB).fill(1),
+       nav: new Uint8Array(NW*NH), navDirty: true, navT: -9,
+       trees, items, surv, followers: [], leader, fire, stock: {x: fire.cx, y: fire.cy + 1.1, items: []},
+       t: 0, out: 0, outT: 0, phase: 'ready', particles: [], floats: [], puffs: [], said: {}, digAcc: 0, refAcc: 0, wasStorm: false,
+       storms: [{at: s1, dur: 20}, {at: s1 + 20 + 35, dur: 25}], stormFx: 0, flakes: [], result: null,
+       fuelLog: [[0, fire.fuel]], logT: 0, heat: new Float32Array(NW*NH), firstRescue: null, showHeat: false};
+  for (let i = 0; i < 160; i++) G.flakes.push({x: Math.random(), y: Math.random(), s: 0.6 + Math.random()*0.8});
+  showOverlay();
+}
+function newItem(x, y, kind, o = {}) { return Object.assign({x, y, kind, cache: false, rot: 0, glint: 0, hidden: false, taken: false, clunkT: -9, claim: null, dclaim: null}, o); }
+
+function depthAt(x, y) {
+  const gx = clamp(x*S, 0, VW - 1.001), gy = clamp(y*S, 0, VH - 1.001), i = Math.floor(gx), j = Math.floor(gy), fx = gx - i, fy = gy - j, F = G.field;
+  const a = F[j*VW + i], b = F[j*VW + i + 1], c = F[(j + 1)*VW + i], d = F[(j + 1)*VW + i + 1];
+  return (a + (b - a)*fx)*(1 - fy) + (c + (d - c)*fx)*fy;
+}
+function radius() { const f = G.fire.fuel; return f > 0 ? 1.5 + (f/100)*(P.radius - 1.5) : 0; }
+const isWarm = c => Math.hypot(c.x - G.fire.cx, c.y - G.fire.cy) <= radius();
+const fuelOf = k => k === 'coal' ? P.coal : P.wood;
+const hasStoker = () => G.surv.some(s => s.state === 'rescued' && s.job === 'stoker');
+function stormInfo() {
+  const t = G.t;
+  for (let i = 0; i < G.storms.length; i++) {
+    const s = G.storms[i];
+    if (t < s.at) return {active: false, next: s.at - t, i};
+    if (t < s.at + s.dur) return {active: true, left: s.at + s.dur - t, i};
+  }
+  return {done: true};
+}
+
+// ---------- input ----------
+// Held directions combine, so two keys give a diagonal. A tap counts as held for at least 80ms so it always moves.
+const KEYS = {ArrowUp:'up', w:'up', W:'up', ArrowDown:'down', s:'down', S:'down', ArrowLeft:'left', a:'left', A:'left', ArrowRight:'right', d:'right', D:'right'};
+const held = new Set(), holdUntil = {};
+const isHeld = d => held.has(d) || performance.now() < (holdUntil[d] || 0);
+function start() { audioStart(); if (G.phase === 'ready') { G.phase = 'play'; showOverlay(); } }
+function press(dir) { held.add(dir); holdUntil[dir] = performance.now() + 80; start(); }
+const release = dir => held.delete(dir);
+addEventListener('keydown', e => {
+  if (e.target.matches && e.target.matches('input')) return;
+  if (KEYS[e.key]) { e.preventDefault(); if (!e.repeat) press(KEYS[e.key]); }
+  else if (e.key === ' ') { e.preventDefault(); if (e.repeat) return; if (G.phase === 'play') cycleJob(); else start(); }
+  else if (e.key === 'Escape') { if (G.phase === 'play') G.phase = 'paused'; else if (G.phase === 'paused') G.phase = 'play'; showOverlay(); }
+  else if (e.key === 'r' || e.key === 'R') { audioStart(); newGame(); }
+  else if (e.key === 'm' || e.key === 'M') { audioStart(); setMuted(!AU.muted); }
+  else if ((e.key === 'h' || e.key === 'H') && G.phase === 'over') toggleHeat();
+});
+addEventListener('keyup', e => { if (KEYS[e.key]) release(KEYS[e.key]); });
+addEventListener('blur', () => held.clear());
+document.querySelectorAll('.pad [data-d]').forEach(b => {
+  b.addEventListener('pointerdown', e => { e.preventDefault(); press(b.dataset.d); });
+  ['pointerup','pointerleave','pointercancel'].forEach(ev => b.addEventListener(ev, () => release(b.dataset.d)));
+});
+$('jobBtn').addEventListener('pointerdown', e => { e.preventDefault(); if (G.phase === 'play') cycleJob(); else start(); });
+$('muteBtn').addEventListener('click', e => { audioStart(); setMuted(!AU.muted); e.currentTarget.blur(); });
+
+// ---------- feedback ----------
+function float(x, y, text, color) { G.floats.push({x, y, text, color, life: 1.1}); }
+function say(key, x, y, text, color) { if ((G.said[key] ?? -9) > G.t - 1.2) return false; G.said[key] = G.t; float(x, y, text, color); return true; }
+function burst(x, y, color, n, spd) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random()*Math.PI*2, v = spd*(0.4 + Math.random()*0.8);
+    G.particles.push({x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v - 1, life: 0.5 + Math.random()*0.4, color, size: 0.05 + Math.random()*0.06});
+  }
+}
+// Burn what fits under a full fire, biggest pieces first; anything that would overflow goes to the stockpile instead
+// of being wasted, where a stoker will use it to top the fire up later (or you can take it back if you have none).
+function feedFire(list, x, y) {
+  const F = G.fire, spare = [];
+  let add = 0;
+  for (const k of [...list].sort((a, b) => fuelOf(b) - fuelOf(a))) { if (F.fuel + add + fuelOf(k) <= 100) add += fuelOf(k); else spare.push(k); }
+  if (add > 0) { F.fuel += add; float(F.cx, F.cy - 0.6, `+${add}`, '#ffc46b'); burst(F.cx, F.cy, '#ffb35c', 14, 3); SFX.feed(x); G.out = 0; }
+  if (spare.length) {
+    G.stock.items.push(...spare);
+    float(G.stock.x, G.stock.y - 0.5, `${spare.length} spare to pile`, '#ffc46b'); burst(G.stock.x, G.stock.y - 0.1, '#ffc46b', 6, 1.5); SFX.pick(G.stock.x);
+  }
+}
+
+// ---------- digging and collision ----------
+function markDirty(ja, jb) {
+  // vertex rows ja..jb touch cell rows ja-1..jb; a band also redraws the cell row just above it
+  for (let b = Math.max(0, Math.floor((ja - 1)/CPB)); b <= Math.min(NB - 1, Math.floor((jb + 1)/CPB)); b++) G.dirty[b] = 1;
+}
+// Remove up to `amt` depth at the shovel's core, tapering to nothing at its rim.
+function dig(cx, cy, amt) {
+  const F = G.field;
+  const i0 = Math.max(0, Math.ceil((cx - SHOVEL)*S)), i1 = Math.min(VW - 1, Math.floor((cx + SHOVEL)*S));
+  const j0 = Math.max(0, Math.ceil((cy - SHOVEL)*S)), j1 = Math.min(VH - 1, Math.floor((cy + SHOVEL)*S));
+  let removed = 0, ja = 1e9, jb = -1;
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const d = Math.hypot(i/S - cx, j/S - cy);
+    if (d > SHOVEL) continue;
+    const k = j*VW + i, v = F[k];
+    if (v <= 0.15) continue; // leave a trace too thin to draw, so walking a cleared path costs nothing
+    const nv = Math.max(0.1, v - amt*(d < CORE ? 1 : 1 - (d - CORE)/(SHOVEL - CORE)));
+    if (nv >= v) continue;
+    removed += v - nv; F[k] = nv; ja = Math.min(ja, j); jb = Math.max(jb, j);
+  }
+  if (removed > 0) { markDirty(ja, jb); G.navDirty = true; }
+  return removed;
+}
+// How much a body at (x, y) overlaps snow and obstacles. A move is allowed if it doesn't increase this,
+// so you can always back out of snow but can't push into it faster than the shovel clears it.
+function cost(x, y, r = BODY) {
+  let c = 0;
+  const F = G.field;
+  const i0 = Math.max(0, Math.ceil((x - r)*S)), i1 = Math.min(VW - 1, Math.floor((x + r)*S));
+  const j0 = Math.max(0, Math.ceil((y - r)*S)), j1 = Math.min(VH - 1, Math.floor((y + r)*S));
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const dx = i/S - x, dy = j/S - y;
+    if (dx*dx + dy*dy <= r*r) { const v = F[j*VW + i]; if (v > 0.5) c += v - 0.5; }
+  }
+  for (const t of G.trees) if (t.hp > 0) c += Math.max(0, BODY + 0.26 - Math.hypot(x - t.x, y - t.y))*20;
+  c += Math.max(0, BODY + 0.3 - Math.hypot(x - G.fire.cx, y - G.fire.cy))*20;
+  return c;
+}
+// Move a character one tick toward (dx, dy) at `step` distance, sliding along snow and obstacles.
+function slide(c, ux, uy, step) {
+  const ox = c.x, oy = c.y;
+  const c0 = cost(c.x, c.y), nx = clamp(c.x + ux*step, BODY, W - BODY);
+  if (cost(nx, c.y) <= c0 + 1e-6) c.x = nx;
+  const c1 = cost(c.x, c.y), ny = clamp(c.y + uy*step, BODY, H - BODY);
+  if (cost(c.x, ny) <= c1 + 1e-6) c.y = ny;
+  return Math.hypot(c.x - ox, c.y - oy);
+}
+
+// ---------- worker navigation: breadth-first search over dug ground ----------
+const navQ = new Int32Array(NW*NH), navPrev = new Int32Array(NW*NH);
+function navEnsure() {
+  if (!G.navDirty || G.t - G.navT < 0.25) return;
+  G.navDirty = false; G.navT = G.t;
+  for (let j = 0; j < NH; j++) for (let i = 0; i < NW; i++) {
+    const x = (i + 0.5)/NS, y = (j + 0.5)/NS;
+    G.nav[j*NW + i] = (x >= BODY && y >= BODY && x <= W - BODY && y <= H - BODY && depthAt(x, y) < 0.45 && cost(x, y, 0.12) < 0.02) ? 1 : 0;
+  }
+}
+const cellOf = (x, y) => clamp(Math.floor(y*NS), 0, NH - 1)*NW + clamp(Math.floor(x*NS), 0, NW - 1);
+const cellPt = k => ({x: (k % NW + 0.5)/NS, y: (Math.floor(k/NW) + 0.5)/NS});
+const navOK = (x, y) => G.nav[cellOf(x, y)] === 1;
+// Plan a path to the reachable cell closest to the goal. If the goal itself is unreachable, the path stops short.
+function plan(c, tx, ty) {
+  navEnsure();
+  c.gx = tx; c.gy = ty; c.planT = 0.6 + Math.random()*0.3;
+  let s = cellOf(c.x, c.y);
+  if (!G.nav[s]) {
+    let best = -1, bd = 1e9; const si = s % NW, sj = Math.floor(s/NW);
+    for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) {
+      const i = si + a, j = sj + b; if (i < 0 || j < 0 || i >= NW || j >= NH) continue;
+      const k = j*NW + i; if (G.nav[k] && a*a + b*b < bd) { bd = a*a + b*b; best = k; }
+    }
+    if (best < 0) { c.path = []; return; }
+    s = best;
+  }
+  navPrev.fill(-1); navPrev[s] = s;
+  let head = 0, tail = 0, bestK = s, bestD = Math.hypot(cellPt(s).x - tx, cellPt(s).y - ty);
+  navQ[tail++] = s;
+  while (head < tail) {
+    const u = navQ[head++], ui = u % NW, uj = (u - ui)/NW;
+    for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) {
+      if (!a && !b) continue;
+      const i = ui + a, j = uj + b;
+      if (i < 0 || j < 0 || i >= NW || j >= NH) continue;
+      const v = j*NW + i;
+      if (!G.nav[v] || navPrev[v] >= 0) continue;
+      if (a && b && (!G.nav[uj*NW + i] || !G.nav[j*NW + ui])) continue; // no corner cutting
+      navPrev[v] = u; navQ[tail++] = v;
+      const p = cellPt(v), d = Math.hypot(p.x - tx, p.y - ty);
+      if (d < bestD) { bestD = d; bestK = v; }
+    }
+  }
+  const path = [];
+  for (let k = bestK; k !== s; k = navPrev[k]) path.push(cellPt(k));
+  path.push(cellPt(s));
+  path.reverse();
+  c.path = path;
+}
+// Walk toward a goal along dug ground; once the path runs out, tunnel straight on if digRate > 0.
+// Returns the remaining distance to the goal.
+function go(c, tx, ty, dt, digRate, speedK = 0.7) {
+  let step = P.speed*speedK*dt, moved = 0;
+  c.moving = false;
+  const d0 = Math.hypot(tx - c.x, ty - c.y);
+  if (d0 < 0.1) return d0;
+  c.planT -= dt;
+  if (!c.path || c.planT <= 0 || Math.hypot(tx - c.gx, ty - c.gy) > 0.3) plan(c, tx, ty);
+  while (step > 1e-4 && c.path.length) {
+    const p = c.path[0], dx = p.x - c.x, dy = p.y - c.y, dd = Math.hypot(dx, dy);
+    if (dd > 1e-6) { c.dx = dx/dd; c.dy = dy/dd; }
+    if (dd <= step) { c.x = p.x; c.y = p.y; c.path.shift(); step -= dd; moved += dd; }
+    else { c.x += dx/dd*step; c.y += dy/dd*step; moved += step; step = 0; }
+  }
+  if (!c.path.length && step > 1e-4 && digRate > 0) {
+    const rd = Math.hypot(tx - c.x, ty - c.y);
+    if (rd > 0.1) {
+      let ux = (tx - c.x)/rd, uy = (ty - c.y)/rd;
+      if (c.stuck > 1.2) { const a = (hash(c.id, Math.floor(G.t/1.5), 3) - 0.5)*2.4, cs = Math.cos(a), sn = Math.sin(a); [ux, uy] = [ux*cs - uy*sn, ux*sn + uy*cs]; }
+      if (dig(c.x + ux*0.3, c.y + uy*0.3, P.dig*digRate*dt) > 0.01) { c.digging = 0.12; SFX.wdig(c.x); }
+      const m = slide(c, ux, uy, step);
+      c.stuck = m < step*0.2 ? c.stuck + dt : 0;
+      c.dx = ux; c.dy = uy; moved += m;
+    }
+  }
+  c.walk += moved; c.moving = moved/dt > 0.5;
+  return Math.hypot(tx - c.x, ty - c.y);
+}
+
+function trailAt(dist) {
+  const L = G.leader;
+  let px = L.x, py = L.y, acc = 0;
+  for (const p of L.trail) {
+    const seg = Math.hypot(p.x - px, p.y - py);
+    if (seg > 0 && acc + seg >= dist) { const t = (dist - acc)/seg; return {x: px + (p.x - px)*t, y: py + (p.y - py)*t}; }
+    acc += seg; px = p.x; py = p.y;
+  }
+  return {x: px, y: py};
+}
+
+// ---------- the leader ----------
+function updateLeader(dt) {
+  const L = G.leader, F = G.fire;
+  let ix = (isHeld('right') ? 1 : 0) - (isHeld('left') ? 1 : 0), iy = (isHeld('down') ? 1 : 0) - (isHeld('up') ? 1 : 0);
+  const il = Math.hypot(ix, iy);
+  if (il) { ix /= il; iy /= il; L.dx = ix; L.dy = iy; }
+  const a = Math.min(1, dt*16);
+  L.vx += (ix*P.speed - L.vx)*a; L.vy += (iy*P.speed - L.vy)*a;
+  L.digging = Math.max(0, L.digging - dt);
+
+  if (il) {
+    const sx = L.x + ix*0.3, sy = L.y + iy*0.3, removed = dig(sx, sy, P.dig*dt);
+    if (removed > 0.02) {
+      L.digging = 0.12; G.digAcc += removed; SFX.dig();
+      if (G.digAcc > 0.6) { G.digAcc = 0; burst(L.x + ix*0.5, L.y + iy*0.5, '#eef6ff', 3, 2.2); }
+      // The shovel knocks against anything buried within reach, which makes sweeping for caches a skill.
+      for (const it of G.items) if (it.hidden && !it.taken && G.t - it.clunkT > 1 && Math.hypot(it.x - sx, it.y - sy) < 0.7) {
+        it.clunkT = G.t; float(sx, sy - 0.4, 'clunk', '#c9d3e3'); burst(it.x, it.y, '#e8eef8', 4, 1.4); SFX.clunk();
+      }
+      for (const s of G.surv) if (s.state === 'buried' && !s.visible && G.t - s.clunkT > 1 && Math.hypot(s.x - sx, s.y - sy) < 0.7) {
+        s.clunkT = G.t; float(s.x, s.y - 0.5, 'Ow! Down here!', '#a9c9e8'); SFX.call(s.x, 1);
+      }
+    }
+  }
+
+  const ox = L.x, oy = L.y;
+  const c0 = cost(L.x, L.y), nx = clamp(L.x + L.vx*dt, BODY, W - BODY);
+  if (cost(nx, L.y) <= c0 + 1e-6) L.x = nx; else L.vx = 0;
+  const c1 = cost(L.x, L.y), ny = clamp(L.y + L.vy*dt, BODY, H - BODY);
+  if (cost(L.x, ny) <= c1 + 1e-6) L.y = ny; else L.vy = 0;
+  const moved = Math.hypot(L.x - ox, L.y - oy);
+  L.walk += moved; L.moving = moved/dt > 0.5;
+  const t0 = L.trail[0];
+  if (!t0 || Math.hypot(L.x - t0.x, L.y - t0.y) > 0.08) { L.trail.unshift({x: L.x, y: L.y}); if (L.trail.length > 160) L.trail.pop(); }
+
+  // Chop: stand next to a tree facing it and you keep swinging, no key needed. Stops when your hands are full.
+  let chopping = false;
+  for (const t of G.trees) {
+    if (t.hp <= 0) continue;
+    const tx = t.x - L.x, ty = t.y - L.y, d = Math.hypot(tx, ty);
+    if (d < BODY + 0.26 + 0.2 && (tx*L.dx + ty*L.dy)/d > 0.35) {
+      if (L.carry.length >= P.carry) { if (il && say('full', L.x, L.y - 0.5, 'Hands full', '#ff5f57')) SFX.full(); break; }
+      chopping = true; L.digging = 0.12; L.chopT += dt;
+      if (L.chopT >= 0.28) {
+        L.chopT = 0;
+        if (L.carry.length >= P.carry) { if (say('full', L.x, L.y - 0.5, 'Hands full', '#ff5f57')) SFX.full(); }
+        else { L.carry.push('wood'); t.hp--; t.shake = 0.25; burst(t.x, t.y, '#a77847', 6, 2); float(t.x, t.y - 0.6, '+wood', '#d9a46b'); SFX.chop(t.x); if (t.hp <= 0) G.navDirty = true; }
+      }
+      break;
+    }
+  }
+  if (!chopping) L.chopT = 0.2; // the first swing lands quickly
+
+  // Feed: touch the fire while carrying.
+  const fx = F.cx - L.x, fy = F.cy - L.y, fd = Math.hypot(fx, fy);
+  if (fd < BODY + 0.3 + 0.1) {
+    if (L.carry.length) { feedFire(L.carry, L.x, L.y); L.carry = []; }
+    else if (il && (fx*ix + fy*iy)/fd > 0.5) say('empty', F.cx, F.cy - 0.6, 'Nothing to burn', '#8fa3bc');
+  }
+  // The stockpile belongs to the stoker: drop fuel there while you have one, take it back if you don't.
+  const st = G.stock;
+  if (Math.hypot(st.x - L.x, st.y - L.y) < 0.45) {
+    if (hasStoker() && L.carry.length) { st.items.push(...L.carry); float(st.x, st.y - 0.5, `stored ${L.carry.length}`, '#ffc46b'); L.carry = []; SFX.pick(st.x); }
+    else if (!hasStoker() && !L.carry.length && st.items.length) {
+      const n = Math.min(P.carry, st.items.length); L.carry = st.items.splice(0, n); float(st.x, st.y - 0.5, `+${n} from pile`, '#ffc46b'); SFX.pick(st.x);
+    }
+  }
+
+  // Reveal and pick up items.
+  for (const it of G.items) {
+    if (it.taken) continue;
+    if (it.hidden) {
+      if (depthAt(it.x, it.y) < 0.5) { it.hidden = false; burst(it.x, it.y, '#eef6ff', 8, 2); float(it.x, it.y - 0.4, it.kind === 'coal' ? 'Coal!' : 'Wood', it.kind === 'coal' ? '#c9d3e3' : '#d9a46b'); SFX.reveal(it.x); }
+      continue;
+    }
+    if (Math.hypot(it.x - L.x, it.y - L.y) < 0.4) {
+      if (L.carry.length < P.carry) { L.carry.push(it.kind); it.taken = true; float(it.x, it.y - 0.4, '+' + it.kind, it.kind === 'coal' ? '#c9d3e3' : '#d9a46b'); SFX.pick(it.x); }
+      else if (say('full', L.x, L.y - 0.5, 'Hands full', '#ff5f57')) SFX.full();
+    }
+  }
+}
+
+// ---------- workers ----------
+// A thawed survivor is a worker. Space next to one cycles idle → hauler → stoker → digger. Everything else
+// is up to them, including when to come in from the cold, which depends on their hidden courage.
+function cycleJob() {
+  const L = G.leader;
+  let best = null, bd = 1.15;
+  for (const s of G.surv) {
+    if (s.state === 'dead' || (s.state === 'buried' && !s.visible)) continue;
+    const d = Math.hypot(s.x - L.x, s.y - L.y);
+    if (d < bd) { bd = d; best = s; }
+  }
+  if (!best) return say('nojob', L.x, L.y - 0.5, 'Stand next to a survivor', '#8fa3bc');
+  if (best.state !== 'rescued') return say('nojob', best.x, best.y - 0.6, 'Too cold to work. Warm them first', '#8cc4ef');
+  const i = (JOBS.indexOf(best.job) + 1) % JOBS.length;
+  dropCarry(best); releaseClaims(best);
+  best.job = JOBS[i]; best.path = null; best.wgoal = null;
+  float(best.x, best.y - 0.7, JOB_LABEL[best.job], '#ffc46b'); SFX.job(i);
+}
+function dropCarry(s) { if (s.carry) { G.items.push(newItem(s.x, s.y + 0.15, s.carry, {rot: 0.3})); s.carry = null; } }
+function releaseClaims(s) {
+  for (const it of G.items) { if (it.claim === s) it.claim = null; if (it.dclaim === s) it.dclaim = null; }
+  for (const o of G.surv) if (o.dclaim === s) o.dclaim = null;
+  s.target = null;
+}
+function wander(s, dt, R) {
+  const F = G.fire;
+  s.wanderT -= dt;
+  if (!s.wgoal || s.wanderT <= 0) {
+    s.wanderT = 3 + Math.random()*4; s.wgoal = null;
+    for (let k = 0; k < 16; k++) {
+      const a = Math.random()*Math.PI*2, d = 0.8 + Math.random()*Math.max(0.2, R - 0.8), x = F.cx + Math.cos(a)*d, y = F.cy + Math.sin(a)*d;
+      if (x > BODY && y > BODY && x < W - BODY && y < H - BODY && navOK(x, y)) { s.wgoal = {x, y}; break; }
+    }
+  }
+  if (s.wgoal) go(s, s.wgoal.x, s.wgoal.y, dt, 0, 0.45);
+}
+function haul(s, dt) {
+  const F = G.fire, st = G.stock;
+  if (s.carry) {
+    const toPile = hasStoker(), d = toPile ? go(s, st.x, st.y, dt, 0.25) : go(s, F.cx, F.cy, dt, 0.25);
+    if (d < (toPile ? 0.45 : 0.8)) {
+      if (toPile) { st.items.push(s.carry); SFX.pick(st.x); } else feedFire([s.carry], s.x, s.y);
+      s.carry = null;
+    }
+    return;
+  }
+  if (!s.target || s.target.taken || s.target.claim !== s) {
+    releaseClaims(s);
+    let bd = 1e9;
+    for (const it of G.items) if (!it.hidden && !it.taken && !it.claim) { const d = Math.hypot(it.x - s.x, it.y - s.y); if (d < bd) { bd = d; s.target = it; } }
+    if (s.target) s.target.claim = s;
+  }
+  if (!s.target) return wander(s, dt, Math.max(1.2, radius()*0.6));
+  const it = s.target;
+  if (go(s, it.x, it.y, dt, 0.25) < 0.35) { it.taken = true; it.claim = null; s.carry = it.kind; s.target = null; SFX.pick(it.x); }
+}
+function stoke(s, dt) {
+  const F = G.fire, st = G.stock;
+  if (s.carry) { if (go(s, F.cx, F.cy, dt, 0.25) < 0.8) { feedFire([s.carry], s.x, s.y); s.carry = null; } return; }
+  // Only feed what fits under a full fire, so nothing is wasted, unless the fire is nearly out.
+  const fits = k => F.fuel + fuelOf(k) <= 100 || F.fuel < 15;
+  const want = st.items.find(k => k === 'wood' && fits(k)) || st.items.find(fits);
+  if (want) { if (go(s, st.x, st.y, dt, 0.25) < 0.45) { st.items.splice(st.items.indexOf(want), 1); s.carry = want; } return; }
+  go(s, st.x + 0.6, st.y - 0.1, dt, 0, 0.45);
+}
+function digJob(s, dt) {
+  const ok = t => t && (t.kind ? t.hidden && !t.taken && !t.cache : t.state === 'buried' && !t.visible);
+  if (!ok(s.target) || s.target.dclaim !== s) {
+    releaseClaims(s);
+    let bd = 1e9;
+    const consider = t => { if (!ok(t) || t.dclaim) return; const d = Math.hypot(t.x - s.x, t.y - s.y); if (d < bd) { bd = d; s.target = t; } };
+    G.items.forEach(consider); G.surv.forEach(consider);
+    if (s.target) s.target.dclaim = s;
+  }
+  if (!s.target) return wander(s, dt, Math.max(1.2, radius()*0.6));
+  go(s, s.target.x, s.target.y, dt, 0.35);
+}
+function updateWorker(s, dt) {
+  const F = G.fire, warm = isWarm(s), limit = 45 + s.courage*52; // the bravest (or most foolish) push on past 95% cold
+  if (!s.returning && s.cold >= limit && !warm) {
+    s.returning = true; releaseClaims(s);
+    say('cold' + s.id, s.x, s.y - 0.7, 'Too cold!', '#8cc4ef');
+  }
+  if (s.returning) {
+    if (warm && s.cold <= 5) s.returning = false;
+    else { const a = s.id*2.1; go(s, F.cx + Math.cos(a)*0.95, F.cy + Math.sin(a)*0.8, dt, 0.25); return; }
+  }
+  if (s.job === 'hauler') haul(s, dt);
+  else if (s.job === 'stoker') stoke(s, dt);
+  else if (s.job === 'digger') digJob(s, dt);
+  else wander(s, dt, Math.max(1.2, Math.max(radius(), 1.5)*(0.5 + Math.pow(s.courage, 3)*2.2)));
+}
+
+// ---------- storms drift snow back into dug paths ----------
+function stormRefill(dt) {
+  G.refAcc += dt;
+  if (G.refAcc < 0.4) return;
+  const step = G.refAcc; G.refAcc = 0;
+  if (P.refill <= 0) return;
+  const F = G.field, B = G.base, D = G.drift, r = radius(), fx = G.fire.cx, fy = G.fire.cy;
+  const keep = [G.leader, ...G.surv.filter(s => s.state !== 'dead' && s.state !== 'buried')];
+  let ja = 1e9, jb = -1;
+  for (let j = 0; j < VH; j++) for (let i = 0; i < VW; i++) {
+    const k = j*VW + i;
+    if (F[k] >= B[k]) continue;
+    const x = i/S, y = j/S;
+    if (r > 0 && (x - fx)*(x - fx) + (y - fy)*(y - fy) < r*r) continue; // the fire's heat keeps its circle clear
+    let near = false;
+    for (const c of keep) if (Math.abs(c.x - x) < 0.4 && Math.abs(c.y - y) < 0.4) { near = true; break; } // never bury someone standing there
+    if (near) continue;
+    F[k] = Math.min(B[k], F[k] + P.refill*step*D[k]);
+    ja = Math.min(ja, j); jb = Math.max(jb, j);
+  }
+  if (jb >= 0) { markDirty(ja, jb); G.navDirty = true; }
+}
+
+function end(win, reason) {
+  G.phase = 'over'; G.showHeat = false;
+  G.fuelLog.push([G.t, G.fire.fuel]);
+  const total = G.surv.length, rescued = G.surv.filter(s => s.state === 'rescued').length;
+  const stars = win ? 1 + (rescued === total ? 1 : 0) + (G.fire.fuel > 50 ? 1 : 0) : 0;
+  G.result = {win, reason, stars, rescued, total, lost: G.surv.filter(s => s.state === 'dead').length, fuel: G.fire.fuel};
+  if (win) SFX.win(); else SFX.lose();
+  showOverlay();
+}
+
+// ---------- simulation ----------
+function update(dt) {
+  for (const p of G.particles) { p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 4*dt; p.life -= dt; }
+  G.particles = G.particles.filter(p => p.life > 0);
+  for (const f of G.floats) { f.y -= 0.8*dt; f.life -= dt; }
+  G.floats = G.floats.filter(f => f.life > 0);
+  for (const t of G.trees) t.shake = Math.max(0, t.shake - dt);
+  for (const p of G.puffs) { p.x += p.vx*dt; p.y += p.vy*dt; p.r += 0.07*dt; p.life -= dt; }
+  G.puffs = G.puffs.filter(p => p.life > 0);
+
+  if (G.phase !== 'play') return;
+  for (const c of [G.leader, ...G.surv]) { c.px = c.x; c.py = c.y; c.digging = Math.max(0, (c.digging || 0) - (c === G.leader ? 0 : dt)); }
+  G.t += dt;
+  const si = stormInfo(), mult = si.active ? 2 : 1;
+  G.stormFx += ((si.active ? 1 : (si.next !== undefined && si.next < 6 ? 0.2 : 0)) - G.stormFx)*Math.min(1, dt*1.5);
+  if (si.active && !G.wasStorm) SFX.storm();
+  G.wasStorm = !!si.active;
+  if (si.active) stormRefill(dt);
+
+  const F = G.fire;
+  F.fuel = Math.max(0, F.fuel - P.burn*mult*dt);
+  if (F.fuel <= 0) {
+    G.out += dt;
+    if ((G.outT -= dt) <= 0) { G.outT = 1; SFX.out(); }
+    if (G.out >= 5) return end(false, 'The fire was out for 5 seconds.');
+  } else { G.out = 0; G.outT = 0; }
+
+  updateLeader(dt);
+  const L = G.leader;
+  L.cold = clamp(L.cold + (isWarm(L) ? -P.warm : P.chill*mult)*dt, 0, 100);
+  if (L.cold >= 100) return end(false, 'You froze.');
+  G.heat[cellOf(L.x, L.y)] += dt;
+  if ((G.logT += dt) >= 0.5) { G.logT = 0; G.fuelLog.push([G.t, F.fuel]); }
+
+  for (const s of G.surv) {
+    if (s.state === 'dead') continue;
+    if (s.state === 'buried' && depthAt(s.x, s.y) < 0.6) {
+      s.state = 'down';
+      if (!s.visible) { s.visible = true; s.cold = Math.max(s.cold, 30); float(s.x, s.y - 0.6, 'Survivor!', '#8cc4ef'); }
+      SFX.found(s.x);
+    }
+    const hidden = s.state === 'buried' && !s.visible; // snow insulates someone fully buried, so they chill slower
+    const warm = isWarm(s);
+    s.cold = clamp(s.cold + (warm ? -P.warm : (hidden ? P.buriedChill : P.chill)*mult)*dt, 0, 100);
+    if (s.cold >= 100) {
+      s.state = 'dead'; G.followers = G.followers.filter(f => f !== s); dropCarry(s); releaseClaims(s);
+      float(s.x, s.y - 0.5, 'Lost', '#ff5f57'); if (!hidden) burst(s.x, s.y, '#bfe3ff', 16, 2); SFX.lost(s.x);
+      continue;
+    }
+    // Breath rises through the snow: slower, fainter puffs the colder they get, stopping when they die.
+    if ((s.state !== 'rescued' || !warm) && (s.puffT -= dt) <= 0) {
+      s.puffT = 1.6 + s.cold/100*3;
+      const k = 1 - s.cold/100*0.7, oy = s.state === 'buried' ? 0.1 + Math.min(3, Math.round(depthAt(s.x, s.y)))*0.11 : 0.4;
+      for (let i = 0; i < 3; i++) G.puffs.push({x: s.x + (Math.random() - 0.5)*0.12, y: s.y - oy - i*0.07, vx: 0.12 + Math.random()*0.08, vy: -0.32 - Math.random()*0.1, r: 0.05 + i*0.025, k, life: 2.2, max: 2.2});
+    }
+    if (hidden) {
+      // Closer clues: muffled calls within a few tiles, then the snow over them trembles.
+      const d = Math.hypot(s.x - L.x, s.y - L.y);
+      s.tremble = d < 1.6;
+      if (d < 3.5 && (s.callT -= dt) <= 0) { s.callT = 2.4; float(s.x, s.y - 0.5, 'help…', '#a9c9e8'); SFX.call(s.x, 1 - d/3.5); }
+      if (s.tremble && Math.random() < dt*3) burst(s.x, s.y - 0.1, '#eef6ff', 2, 0.8);
+      continue;
+    }
+    if (s.state === 'down' && Math.hypot(s.x - L.x, s.y - L.y) < 1.0) { s.state = 'follow'; s.path = null; G.followers.push(s); float(s.x, s.y - 0.6, 'Following', '#8cc4ef'); }
+    if ((s.state === 'follow' || s.state === 'down') && warm && s.cold <= 0) {
+      s.state = 'rescued'; s.job = 'idle'; s.path = null; G.followers = G.followers.filter(f => f !== s);
+      if (G.firstRescue === null) G.firstRescue = G.t;
+      float(s.x, s.y - 0.6, 'Rescued · Space to give a job', '#7fd6a0'); burst(s.x, s.y, '#ffc46b', 12, 2); SFX.rescued(s.x);
+    }
+    if (s.state === 'down') go(s, F.cx - 0.9, F.cy + 0.3, dt, 0, 0.4); // dug out by someone else: stagger toward the fire
+    else if (s.state === 'rescued') updateWorker(s, dt);
+  }
+  // Followers walk the leader's trail, spaced out behind them.
+  G.followers.forEach((f, i) => {
+    const tg = trailAt((i + 1)*0.75), dx = tg.x - f.x, dy = tg.y - f.y, d = Math.hypot(dx, dy);
+    f.moving = false;
+    if (d > 0.03) {
+      const st = Math.min(d, Math.max(P.speed, d*6)*dt);
+      f.x += dx/d*st; f.y += dy/d*st; f.walk += st; f.dx = dx/d; f.dy = dy/d; f.moving = st/dt > 0.5;
+    }
+  });
+
+  if (si.done) return end(true, 'The storms passed and the fire held.');
+}
+
+// ---------- terrain rendering ----------
+const SNOW_TOP = ['#c9d7e6', '#dbe6f1', '#edf3f9'];
+function buildGround() {
+  const g = gctx, r = rng(7), A = W*H;
+  g.fillStyle = '#272f40'; g.fillRect(0, 0, W*T, H*T);
+  const tones = ['rgba(64,76,100,0.35)', 'rgba(16,22,34,0.4)', 'rgba(74,66,60,0.25)'];
+  for (let i = 0; i < A*1.2; i++) {
+    const x = r()*W*T, y = r()*H*T, rad = (0.4 + r()*1.3)*T, gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, tones[Math.floor(r()*tones.length)]); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad*2, rad*2);
+  }
+  for (let i = 0; i < A*0.06; i++) { g.fillStyle = 'rgba(150,190,225,0.16)'; g.beginPath(); g.ellipse(r()*W*T, r()*H*T, (0.2 + r()*0.4)*T, (0.1 + r()*0.2)*T, r()*3, 0, 7); g.fill(); }
+  for (let i = 0; i < A*0.7; i++) {
+    const x = r()*W*T, y = r()*H*T, s = (0.03 + r()*0.06)*T;
+    g.fillStyle = '#3f485b'; g.beginPath(); g.ellipse(x, y, s*1.3, s, r()*3, 0, 7); g.fill();
+    g.fillStyle = '#566179'; g.beginPath(); g.ellipse(x - s*0.3, y - s*0.35, s*0.5, s*0.35, 0, 0, 7); g.fill();
+  }
+  g.strokeStyle = '#4b3a2b'; g.lineCap = 'round';
+  for (let i = 0; i < A*0.18; i++) {
+    const x = r()*W*T, y = r()*H*T, a = r()*Math.PI, l = (0.12 + r()*0.25)*T;
+    g.lineWidth = 1 + r()*1.2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a)*l, y + Math.sin(a)*l);
+    if (r() < 0.5) { g.moveTo(x + Math.cos(a)*l*0.5, y + Math.sin(a)*l*0.5); g.lineTo(x + Math.cos(a + 0.7)*l*0.8, y + Math.sin(a + 0.7)*l*0.8); }
+    g.stroke();
+  }
+}
+// Marching squares: the part of one cell whose depth is above t, as a polygon with edges interpolated
+// between samples. All cells go into one Path2D per level, so neighbouring pieces fill without seams.
+function addCell(p, i, j, v0, v1, v2, v3, t) {
+  const q = T/S, vs = [v0, v1, v2, v3], cx = [i, i + 1, i + 1, i], cy = [j, j, j + 1, j + 1];
+  let first = true;
+  const pt = (x, y) => { if (first) { p.moveTo(x*q, y*q); first = false; } else p.lineTo(x*q, y*q); };
+  for (let k = 0; k < 4; k++) {
+    const n = (k + 1) & 3, a = vs[k], b = vs[n];
+    if (a > t) pt(cx[k], cy[k]);
+    if ((a > t) !== (b > t)) { const f = (t - a)/(b - a); pt(cx[k] + (cx[n] - cx[k])*f, cy[k] + (cy[n] - cy[k])*f); }
+  }
+  p.closePath();
+}
+function rebuildBand(b) {
+  const c = bands[b].ctx, top = b*T/2, F = G.field, q = T/S;
+  c.setTransform(dpr, 0, 0, dpr, 0, -(top - RISE)*dpr);
+  c.clearRect(0, top - RISE, W*T, T/2 + RISE + SH);
+  const r0 = b*CPB, r1 = r0 + CPB, jStart = Math.max(0, r0 - 1);
+  const paths = LEVELS.map(() => new Path2D()), shadow = new Path2D();
+  for (let j = jStart; j < Math.min(H*S, r1); j++) {
+    for (let li = 0; li < LEVELS.length; li++) {
+      const t = LEVELS[li], p = paths[li], own = li === 1 && j >= r0;
+      let run = -1;
+      for (let i = 0; i <= W*S; i++) {
+        let full = false, any = false, v0 = 0, v1 = 0, v2 = 0, v3 = 0;
+        if (i < W*S) {
+          v0 = F[j*VW + i]; v1 = F[j*VW + i + 1]; v2 = F[(j + 1)*VW + i + 1]; v3 = F[(j + 1)*VW + i];
+          full = v0 > t && v1 > t && v2 > t && v3 > t; any = v0 > t || v1 > t || v2 > t || v3 > t;
+        }
+        if (full) { if (run < 0) run = i; continue; }
+        if (run >= 0) { p.rect(run*q, j*q, (i - run)*q, q); if (own) shadow.rect(run*q, j*q, (i - run)*q, q); run = -1; }
+        if (any) { addCell(p, i, j, v0, v1, v2, v3, t); if (own) addCell(shadow, i, j, v0, v1, v2, v3, t); }
+      }
+    }
+  }
+  // Shadow cast south onto the ground (only from this band's own rows, only downward).
+  c.save(); c.beginPath(); c.rect(0, top, W*T, T/2 + SH); c.clip();
+  c.shadowColor = 'rgba(4,10,24,0.55)'; c.shadowBlur = T*0.3*dpr; c.shadowOffsetX = T*0.05*dpr; c.shadowOffsetY = T*0.16*dpr;
+  c.fillStyle = '#1a2130'; c.fill(shadow); c.restore();
+  c.fillStyle = 'rgba(205,220,238,0.22)'; c.fill(paths[0]);
+  for (let L = 1; L <= 3; L++) {
+    const p = paths[L], h = L*HU, lo = ['#6a81a0', '#7a90ae', '#8aa0bb'][L - 1], hi = ['#a1b5cc', '#b1c3d6', '#c2d1e1'][L - 1];
+    // Extrude the front face: stack copies of the shape upward, shading from dark at the base to light at the lip.
+    for (let k = (L - 1)*HU; k < h; k += 1.25) { c.save(); c.translate(0, -k); c.fillStyle = mix(lo, hi, (k - (L - 1)*HU)/HU); c.fill(p); c.restore(); }
+    // A bright lip along north-facing edges: the same shape nudged up, peeking out behind the top.
+    c.save(); c.beginPath(); c.rect(0, jStart*q - h + 1, W*T, T/2 + q + 2); c.clip();
+    c.translate(0, -h - Math.max(1.5, T*0.04)); c.fillStyle = 'rgba(255,255,255,0.9)'; c.fill(p); c.restore();
+    c.save(); c.translate(0, -h); c.fillStyle = SNOW_TOP[L - 1]; c.fill(p); c.clip(p);
+    const r = rng(b*31 + L*7 + 1);
+    c.fillStyle = 'rgba(255,255,255,0.9)';
+    for (let i = 0; i < 26; i++) { const sz = 1 + r()*1.5; c.fillRect(r()*W*T, top + r()*T/2, sz, sz); }
+    c.fillStyle = 'rgba(120,150,190,0.3)';
+    for (let i = 0; i < 8; i++) { c.beginPath(); c.ellipse(r()*W*T, top + r()*T/2, T*(0.1 + r()*0.14), T*0.025, 0, 0, 7); c.fill(); }
+    c.restore();
+  }
+}
+function resize() {
+  const w = $('board').clientWidth - 2;
+  T = Math.max(14, Math.min(44, Math.floor(w / W)));
+  dpr = window.devicePixelRatio || 1;
+  HU = T*0.11; RISE = Math.ceil(HU*3 + T/S + T*0.06 + 3); SH = Math.ceil(T*0.6);
+  for (const c of [cv, coldCv, maskCv, groundCv]) { c.width = W*T*dpr; c.height = H*T*dpr; }
+  cv.style.width = W*T + 'px'; cv.style.height = H*T + 'px';
+  for (const c of [ctx, cctx, mctx, gctx]) c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  bands = [];
+  for (let b = 0; b < NB; b++) { const c = document.createElement('canvas'); c.width = Math.ceil(W*T*dpr); c.height = Math.ceil((T/2 + RISE + SH)*dpr); bands.push({cv: c, ctx: c.getContext('2d')}); }
+  buildGround();
+  if (G) G.dirty.fill(1);
+}
+new ResizeObserver(resize).observe($('board'));
+
+// ---------- sprites ----------
+function drawTree(t, now) {
+  const cx = t.x*T + (t.shake > 0 && !reduceMotion ? Math.sin(now*70)*t.shake*0.3*T : 0), by = (t.y + 0.42)*T;
+  if (t.hp <= 0) {
+    ctx.fillStyle = '#5b3d26'; ctx.beginPath(); ctx.ellipse(cx, (t.y + 0.2)*T, T*0.15, T*0.09, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#9a7048'; ctx.beginPath(); ctx.ellipse(cx, (t.y + 0.18)*T, T*0.11, T*0.06, 0, 0, 7); ctx.fill();
+    return;
+  }
+  const s = (0.55 + t.hp*0.15)*t.s;
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(cx, by, T*0.3*s, T*0.1*s, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#5b3d26'; ctx.fillRect(cx - T*0.07, by - T*0.25, T*0.14, T*0.25);
+  for (let i = 0; i < 2; i++) {
+    const tp = by - T*(0.95 - i*0.28)*s, base = by - T*(0.2 + (1 - i)*0.22)*s, half = T*(0.24 + i*0.12)*s;
+    ctx.fillStyle = '#2e4b45';
+    ctx.beginPath(); ctx.moveTo(cx, tp); ctx.lineTo(cx + half, base); ctx.lineTo(cx - half, base); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#e8f1f8';
+    ctx.beginPath(); ctx.moveTo(cx, tp); ctx.lineTo(cx + half*0.45, tp + (base - tp)*0.45); ctx.lineTo(cx - half*0.45, tp + (base - tp)*0.45); ctx.closePath(); ctx.fill();
+  }
+}
+function drawFire(fx, fy, now) {
+  const cx = fx*T, cy = fy*T, f = G.fire.fuel;
+  ctx.fillStyle = '#4b5263'; ctx.beginPath(); ctx.arc(cx, cy + T*0.12, T*0.42, 0, 7); ctx.fill();
+  ctx.fillStyle = '#1c1f27'; ctx.beginPath(); ctx.arc(cx, cy + T*0.12, T*0.3, 0, 7); ctx.fill();
+  if (f <= 0) {
+    ctx.fillStyle = 'rgba(160,170,190,0.4)';
+    for (let i = 0; i < 3; i++) { const yy = cy - ((now*0.6 + i/3) % 1)*T*0.8; ctx.beginPath(); ctx.arc(cx + Math.sin(now*2 + i)*T*0.1, yy, T*0.08, 0, 7); ctx.fill(); }
+    return;
+  }
+  const hgt = T*(0.35 + 0.6*f/100);
+  for (const [col, sc] of [['#ff6a2b', 1], ['#ffa23d', 0.72], ['#ffe08a', 0.42]]) {
+    ctx.fillStyle = col; ctx.beginPath();
+    const w = T*0.26*sc + T*0.04, hh = hgt*sc, fl = reduceMotion ? 0 : Math.sin(now*14 + sc*9)*T*0.04;
+    ctx.moveTo(cx - w, cy + T*0.12);
+    ctx.quadraticCurveTo(cx - w*0.9, cy - hh*0.4, cx + fl, cy + T*0.12 - hh);
+    ctx.quadraticCurveTo(cx + w*0.9, cy - hh*0.4, cx + w, cy + T*0.12);
+    ctx.closePath(); ctx.fill();
+  }
+}
+function drawFuelIcon(kind, x, y, sc = 1) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc);
+  if (kind === 'wood') {
+    for (const a of [-0.35, 0.35]) { ctx.save(); ctx.rotate(a); ctx.fillStyle = '#9b6a3c'; rr(ctx, -T*0.3, -T*0.07, T*0.6, T*0.14, T*0.07); ctx.fill(); ctx.fillStyle = '#d9a46b'; ctx.beginPath(); ctx.arc(T*0.28, 0, T*0.06, 0, 7); ctx.fill(); ctx.restore(); }
+  } else {
+    ctx.fillStyle = '#15181f';
+    ctx.beginPath(); ctx.moveTo(-T*0.26, T*0.12); ctx.lineTo(-T*0.14, -T*0.18); ctx.lineTo(T*0.12, -T*0.2); ctx.lineTo(T*0.27, T*0.05); ctx.lineTo(T*0.08, T*0.2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#5c6d8c'; ctx.fillRect(-T*0.08, -T*0.12, T*0.1, T*0.04);
+  }
+  ctx.restore();
+}
+function drawItem(it) { ctx.save(); ctx.translate(it.x*T, it.y*T); ctx.rotate(it.rot); drawFuelIcon(it.kind, 0, 0); ctx.restore(); }
+function drawStock(now) {
+  const st = G.stock, cx = st.x*T, cy = st.y*T, active = hasStoker();
+  ctx.save(); ctx.globalAlpha = active || st.items.length ? 1 : 0.55;
+  ctx.fillStyle = '#4a3523'; rr(ctx, cx - T*0.34, cy - T*0.02, T*0.68, T*0.16, T*0.05); ctx.fill();
+  ctx.fillStyle = '#6b4c31'; for (let i = -1; i <= 1; i++) ctx.fillRect(cx + i*T*0.22 - T*0.05, cy, T*0.1, T*0.12);
+  st.items.slice(0, 8).forEach((k, i) => drawFuelIcon(k, cx + ((i % 3) - 1)*T*0.17, cy - T*0.06 - Math.floor(i/3)*T*0.1, 0.45));
+  ctx.restore();
+  if (st.items.length) {
+    ctx.font = `600 ${Math.max(10, T*0.26)}px ${bodyFont()}`; ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(5,10,20,0.8)'; ctx.fillText(st.items.length, cx + T*0.42 + 1, cy + T*0.12 + 1);
+    ctx.fillStyle = '#ffc46b'; ctx.fillText(st.items.length, cx + T*0.42, cy + T*0.12);
+  }
+}
+function drawPerson(c, coat, isLeader, now, buried) {
+  const cold = c.cold/100;
+  const amp = c.cold > 45 && !reduceMotion ? (c.cold - 45)/55*0.06*T : 0;
+  const lift = buried ? Math.min(3, Math.round(depthAt(c.x, c.y)))*HU : 0;
+  const cx = c.rx*T + Math.sin(now*55 + c.x*7)*amp, cy = c.ry*T - lift;
+  const coatC = mix(coat, '#bfe3ff', cold*0.85), skin = mix('#f1c9a0', '#cfe9ff', cold);
+  const hatC = isLeader ? mix('#c43d1f', '#bfe3ff', cold*0.6) : mix('#59606e', '#bfe3ff', cold*0.6);
+  if (buried) {
+    // A dark hollow in the snow, then head, hat and a waving arm, so the half-buried survivor reads at a glance.
+    ctx.fillStyle = 'rgba(20,30,52,0.6)'; ctx.beginPath(); ctx.ellipse(cx, cy + T*0.02, T*0.34, T*0.15, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = coatC; ctx.beginPath(); ctx.ellipse(cx, cy + T*0.02, T*0.22, T*0.09, 0, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(cx, cy - T*0.08, T*0.15, 0, 7); ctx.fill();
+    ctx.fillStyle = hatC; ctx.beginPath(); ctx.arc(cx, cy - T*0.11, T*0.15, Math.PI*1.05, -0.05*Math.PI); ctx.fill();
+    ctx.fillStyle = '#1b2333';
+    for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(cx + s*0.05*T, cy - T*0.06, Math.max(1.2, T*0.022), 0, 7); ctx.fill(); }
+    const wave = reduceMotion ? 0 : Math.sin(now*6)*0.06*T;
+    ctx.strokeStyle = coatC; ctx.lineWidth = T*0.08; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cx + T*0.14, cy - T*0.02); ctx.lineTo(cx + T*0.28 + wave, cy - T*0.28); ctx.stroke();
+  } else {
+    // A hop per ~0.6 tiles walked, squashing at the ends and stretching mid-air; a shove toward the snow while digging.
+    const anim = !reduceMotion, ph = c.walk*1.7;
+    const hop = anim && c.moving ? Math.abs(Math.sin(Math.PI*ph))*0.08*T : 0;
+    const sq = anim && c.moving ? 0.06*Math.cos(2*Math.PI*ph) : 0;
+    const shove = anim && c.digging > 0 ? Math.abs(Math.sin(now*26))*0.07*T : 0;
+    const bx = cx + c.dx*shove, by = cy + c.dy*shove, feet = by + T*0.32, sh = 1 - hop/(T*0.3);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(bx, feet, T*0.26*sh, T*0.09*sh, 0, 0, 7); ctx.fill();
+    ctx.save();
+    ctx.translate(bx, feet - hop); ctx.scale(1 + sq, 1 - sq); ctx.translate(-bx, -feet);
+    ctx.fillStyle = coatC; rr(ctx, bx - T*0.24, by - T*0.06, T*0.48, T*0.38, T*0.16); ctx.fill();
+    ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(bx, by - T*0.17, T*0.17, 0, 7); ctx.fill();
+    ctx.fillStyle = hatC;
+    if (isLeader) { ctx.beginPath(); ctx.arc(bx, by - T*0.22, T*0.17, Math.PI, 0); ctx.fill(); ctx.fillRect(bx - T*0.2, by - T*0.24, T*0.4, T*0.05); }
+    else { ctx.beginPath(); ctx.arc(bx, by - T*0.2, T*0.17, Math.PI*1.05, -0.05*Math.PI); ctx.fill(); }
+    if (c.dy < -0.6) { ctx.beginPath(); ctx.arc(bx, by - T*0.17, T*0.17, Math.PI*0.9, Math.PI*0.1); ctx.fill(); } // back of the head
+    else {
+      ctx.fillStyle = '#1b2333';
+      for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(bx + (c.dx*0.06 + s*0.055)*T, by - T*0.13, Math.max(1.2, T*0.025), 0, 7); ctx.fill(); }
+    }
+    if (c.carry && typeof c.carry === 'string') drawFuelIcon(c.carry, bx, by + T*0.08, 0.5);
+    if (cold > 0.3) { ctx.strokeStyle = `rgba(220,240,255,${(cold - 0.3)*1.1})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(bx, by + T*0.04, T*0.36, 0, 7); ctx.stroke(); }
+    ctx.restore();
+  }
+  if (c.cold > 2) {
+    const bw = T*0.7, bx = cx - bw/2, by = cy - T*0.52;
+    ctx.fillStyle = 'rgba(5,10,20,0.75)'; ctx.fillRect(bx - 1, by - 1, bw + 2, 6);
+    ctx.fillStyle = c.cold > 70 ? '#ff5f57' : '#8cc4ef'; ctx.fillRect(bx, by, bw*cold, 4);
+  }
+}
+// A small badge over a worker's head naming their job with an icon.
+function drawBadge(s) {
+  if (s.job === 'idle') return;
+  const r = Math.max(6, T*0.15), cx = s.rx*T + T*0.3, cy = s.ry*T - T*0.62;
+  ctx.fillStyle = '#121c2e'; ctx.strokeStyle = s.returning ? '#8cc4ef' : '#ffc46b'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.save(); ctx.translate(cx, cy); const u = r/10;
+  if (s.job === 'hauler') { ctx.fillStyle = '#c48a52'; rr(ctx, -6*u, -4*u, 12*u, 3.5*u, 1.5*u); ctx.fill(); rr(ctx, -6*u, 0.5*u, 12*u, 3.5*u, 1.5*u); ctx.fill(); }
+  else if (s.job === 'stoker') { ctx.fillStyle = '#ff8a3d'; ctx.beginPath(); ctx.moveTo(0, -6*u); ctx.quadraticCurveTo(5*u, 0, 3.5*u, 4*u); ctx.quadraticCurveTo(0, 6*u, -3.5*u, 4*u); ctx.quadraticCurveTo(-5*u, 0, 0, -6*u); ctx.fill(); }
+  else { ctx.strokeStyle = '#c9d3e3'; ctx.lineWidth = 1.6*u; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-4*u, -5*u); ctx.lineTo(2*u, 2*u); ctx.stroke(); ctx.fillStyle = '#c9d3e3'; ctx.beginPath(); ctx.moveTo(1*u, 0); ctx.lineTo(6*u, 3*u); ctx.lineTo(3*u, 7*u); ctx.lineTo(-1*u, 4*u); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+}
+function drawDead(s) {
+  const cx = s.rx*T, cy = s.ry*T;
+  ctx.fillStyle = 'rgba(170,215,245,0.85)'; rr(ctx, cx - T*0.3, cy - T*0.4, T*0.6, T*0.78, T*0.1); ctx.fill();
+  ctx.fillStyle = '#7fa6c8'; ctx.beginPath(); ctx.arc(cx, cy - T*0.15, T*0.14, 0, 7); ctx.fill(); ctx.fillRect(cx - T*0.18, cy, T*0.36, T*0.28);
+}
+// ---------- surface clues for things still under the snow ----------
+const surfaceLift = (x, y) => Math.min(3, Math.round(depthAt(x, y)))*HU;
+function drawItemTell(it, now) {
+  const cx = it.x*T, cy = it.y*T - surfaceLift(it.x, it.y);
+  ctx.fillStyle = 'rgba(40,52,76,0.35)'; ctx.beginPath(); ctx.ellipse(cx, cy + T*0.02, T*0.13, T*0.05, 0, 0, 7); ctx.fill();
+  if (it.kind === 'wood') { // branch tips sticking out, capped with snow
+    ctx.strokeStyle = '#6e4a2c'; ctx.lineWidth = Math.max(2, T*0.06); ctx.lineCap = 'round';
+    const tips = [[-0.07, 0, -0.17, -0.22], [0.05, 0.02, 0.13, -0.17]];
+    for (const [x0, y0, x1, y1] of tips) { ctx.beginPath(); ctx.moveTo(cx + x0*T, cy + y0*T); ctx.lineTo(cx + x1*T, cy + y1*T); ctx.stroke(); }
+    ctx.fillStyle = '#f2f7fc';
+    for (const [, , x1, y1] of tips) { ctx.beginPath(); ctx.arc(cx + x1*T, cy + y1*T, T*0.035, 0, 7); ctx.fill(); }
+  } else { // a dark lump of coal showing through, with an occasional glint
+    ctx.fillStyle = '#1b1f27'; ctx.beginPath(); ctx.ellipse(cx, cy - T*0.02, T*0.09, T*0.05, 0.3, 0, 7); ctx.fill();
+    const ph = (now*0.45 + it.glint) % 1;
+    if (ph < 0.14 && !reduceMotion) {
+      const s = Math.sin(ph/0.14*Math.PI)*T*0.13, gx = cx + T*0.03, gy = cy - T*0.05;
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(gx - s, gy); ctx.lineTo(gx + s, gy); ctx.moveTo(gx, gy - s); ctx.lineTo(gx, gy + s); ctx.stroke();
+    }
+  }
+}
+function drawSurvivorTell(s, now) {
+  const j = s.tremble && !reduceMotion ? (Math.random() - 0.5)*0.05*T : 0;
+  const cx = s.x*T + j, cy = s.y*T - surfaceLift(s.x, s.y);
+  ctx.fillStyle = 'rgba(40,52,76,0.4)'; ctx.beginPath(); ctx.ellipse(cx, cy + T*0.03, T*0.2, T*0.07, 0, 0, 7); ctx.fill();
+  const frost = s.state === 'dead' ? 0.6 : s.cold/100*0.4;
+  ctx.save(); ctx.translate(cx, cy);
+  if (s.tell === 'mitten') {
+    ctx.rotate(-0.4); ctx.fillStyle = mix('#c8402c', '#bfe3ff', frost);
+    rr(ctx, -T*0.08, -T*0.2, T*0.16, T*0.22, T*0.07); ctx.fill();
+    rr(ctx, T*0.05, -T*0.12, T*0.07, T*0.11, T*0.035); ctx.fill();
+    ctx.fillStyle = '#f2f7fc'; ctx.fillRect(-T*0.09, -T*0.01, T*0.18, T*0.05);
+  } else if (s.tell === 'scarf') {
+    ctx.rotate(0.35);
+    for (let i = 0; i < 4; i++) { ctx.fillStyle = mix(i % 2 ? '#f0e6d2' : '#2f7a6a', '#bfe3ff', frost); ctx.fillRect(-T*0.06, -T*0.26 + i*T*0.065, T*0.12, T*0.066); }
+    ctx.fillStyle = mix('#2f7a6a', '#bfe3ff', frost);
+    for (let i = 0; i < 3; i++) ctx.fillRect(-T*0.05 + i*T*0.04, -T*0.31, T*0.022, T*0.06);
+  } else {
+    ctx.fillStyle = mix('#3a62a8', '#bfe3ff', frost); ctx.beginPath(); ctx.arc(0, 0, T*0.15, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = mix('#e9eef6', '#bfe3ff', frost); ctx.fillRect(-T*0.16, -T*0.03, T*0.32, T*0.05);
+    ctx.beginPath(); ctx.arc(0, -T*0.17, T*0.06, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function render(now) {
+  const L = G.leader, F = G.fire, r = radius();
+  const alpha = G.phase === 'play' ? Math.min(1, acc/STEP) : 1;
+  for (const c of [L, ...G.surv]) { c.rx = c.px + (c.x - c.px)*alpha; c.ry = c.py + (c.y - c.py)*alpha; }
+  // Redraw changed terrain bands, a few per frame, so a storm refilling every path doesn't stall one frame.
+  let budget = 6;
+  for (let n = 0; n < NB && budget > 0; n++) { const b = (bandCursor + n) % NB; if (G.dirty[b]) { rebuildBand(b); G.dirty[b] = 0; budget--; bandCursor = (b + 1) % NB; } }
+
+  ctx.clearRect(0, 0, W*T, H*T);
+  ctx.drawImage(groundCv, 0, 0, W*T, H*T);
+  // Back to front: each band of snow, then whatever stands in it, so nearer drifts overlap it.
+  const buckets = Array.from({length: NB}, () => []);
+  const put = (y, fn) => buckets[clamp(Math.floor((y + 0.2)*2), 0, NB - 1)].push([y, fn]);
+  for (const t of G.trees) put(t.y, () => drawTree(t, now));
+  for (const it of G.items) {
+    if (it.taken) continue;
+    if (!it.hidden) put(it.y, () => drawItem(it));
+    else if (!it.cache) put(it.y, () => drawItemTell(it, now));
+  }
+  put(F.cy, () => drawFire(F.cx, F.cy, now));
+  put(G.stock.y, () => drawStock(now));
+  for (const s of G.surv) {
+    if (s.state === 'dead') put(s.ry, () => (s.visible || depthAt(s.x, s.y) < 0.6) ? drawDead(s) : drawSurvivorTell(s, now));
+    else if (s.state === 'buried') put(s.ry, () => s.visible ? drawPerson(s, '#6f8c6a', false, now, true) : drawSurvivorTell(s, now));
+    else put(s.ry, () => { drawPerson(s, s.state === 'rescued' ? '#7a9a70' : '#6f8c6a', false, now, false); if (s.state === 'rescued') drawBadge(s); });
+  }
+  put(L.ry + 0.001, () => drawPerson(L, '#e0653a', true, now, false));
+  for (let b = 0; b < NB; b++) {
+    ctx.drawImage(bands[b].cv, 0, b*T/2 - RISE, W*T, T/2 + RISE + SH);
+    buckets[b].sort((a, c) => a[0] - c[0]).forEach(o => o[1]());
+  }
+
+  // cold outside the warm zone
+  const fx = F.cx*T, fy = F.cy*T, rp = r*T;
+  cctx.globalCompositeOperation = 'source-over';
+  cctx.clearRect(0, 0, W*T, H*T);
+  cctx.fillStyle = 'rgba(14,36,84,0.46)'; cctx.fillRect(0, 0, W*T, H*T);
+  if (rp > 0) {
+    cctx.globalCompositeOperation = 'destination-out';
+    const g = cctx.createRadialGradient(fx, fy, 0, fx, fy, rp);
+    g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.86, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    cctx.fillStyle = g; cctx.beginPath(); cctx.arc(fx, fy, rp, 0, 7); cctx.fill();
+  }
+  ctx.drawImage(coldCv, 0, 0, W*T, H*T);
+  if (rp > 0) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const g2 = ctx.createRadialGradient(fx, fy, 0, fx, fy, rp);
+    g2.addColorStop(0, 'rgba(255,140,60,0.32)'); g2.addColorStop(1, 'rgba(255,110,40,0.04)');
+    ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(fx, fy, rp, 0, 7); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.strokeStyle = F.fuel < 20 ? 'rgba(255,95,87,0.85)' : 'rgba(255,170,90,0.75)'; ctx.lineWidth = 2;
+    ctx.setLineDash([T*0.3, T*0.18]); ctx.lineDashOffset = reduceMotion ? 0 : -now*T*0.6;
+    ctx.beginPath(); ctx.arc(fx, fy, rp, 0, 7); ctx.stroke(); ctx.restore();
+  }
+
+  // Breath vapour sits above the cold tint so it reads from anywhere on the map (storms still hide it).
+  for (const p of G.puffs) {
+    const a = p.k*0.45*Math.min(1, p.life/p.max*1.6)*Math.min(1, (p.max - p.life)*4);
+    ctx.fillStyle = `rgba(236,245,255,${a})`; ctx.beginPath(); ctx.arc(p.x*T, p.y*T, p.r*T, 0, 7); ctx.fill();
+  }
+  for (const p of G.particles) { ctx.globalAlpha = Math.min(1, p.life*2); ctx.fillStyle = p.color; ctx.fillRect(p.x*T, p.y*T, p.size*T, p.size*T); }
+  ctx.globalAlpha = 1;
+
+  if (G.stormFx > 0.01) {
+    ctx.strokeStyle = `rgba(230,242,255,${0.55*G.stormFx})`; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (const f of G.flakes) {
+      if (!reduceMotion) { f.x = (f.x + 0.012*f.s*(0.4 + G.stormFx)) % 1; f.y = (f.y + 0.004*f.s*(0.4 + G.stormFx)) % 1; }
+      const x = f.x*W*T, y = f.y*H*T; ctx.moveTo(x, y); ctx.lineTo(x - T*0.4*f.s*G.stormFx, y - T*0.13*f.s*G.stormFx);
+    }
+    ctx.stroke();
+    mctx.globalCompositeOperation = 'source-over';
+    mctx.clearRect(0, 0, W*T, H*T);
+    mctx.fillStyle = `rgba(8,13,24,${0.9*G.stormFx})`; mctx.fillRect(0, 0, W*T, H*T);
+    mctx.globalCompositeOperation = 'destination-out';
+    const hole = (x, y, rad) => { const g = mctx.createRadialGradient(x, y, rad*0.4, x, y, rad); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)'); mctx.fillStyle = g; mctx.beginPath(); mctx.arc(x, y, rad, 0, 7); mctx.fill(); };
+    hole(L.rx*T, L.ry*T, T*3.2);
+    if (F.fuel > 0) hole(fx, fy, T*1.6);
+    ctx.drawImage(maskCv, 0, 0, W*T, H*T);
+  }
+
+  ctx.textAlign = 'center'; ctx.font = `600 ${Math.max(10, T*0.32)}px ${bodyFont()}`;
+  for (const f of G.floats) {
+    ctx.globalAlpha = Math.min(1, f.life*1.6);
+    ctx.fillStyle = 'rgba(5,10,20,0.8)'; ctx.fillText(f.text, f.x*T + 1, f.y*T + 1);
+    ctx.fillStyle = f.color; ctx.fillText(f.text, f.x*T, f.y*T);
+  }
+  ctx.globalAlpha = 1;
+
+  if (G.showHeat && G.phase === 'over') drawHeat();
+}
+// Where the leader spent their time: one warm hue, brighter with more time, on a darkened board.
+function drawHeat() {
+  ctx.fillStyle = 'rgba(6,10,20,0.66)'; ctx.fillRect(0, 0, W*T, H*T);
+  let max = 0; for (const v of G.heat) if (v > max) max = v;
+  if (!max) return;
+  const q = T/NS, lm = Math.log1p(max*6);
+  for (let k = 0; k < G.heat.length; k++) {
+    const v = G.heat[k]; if (!v) continue;
+    const t = Math.log1p(v*6)/lm;
+    ctx.fillStyle = mix('#b4531c', '#ffe6b8', t); ctx.globalAlpha = 0.5 + 0.5*t;
+    ctx.beginPath(); ctx.arc((k % NW + 0.5)*q, (Math.floor(k/NW) + 0.5)*q, q*0.95, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#ff8a3d'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(G.fire.cx*T, G.fire.cy*T, T*0.35, 0, 7); ctx.stroke();
+}
+
+// ---------- HUD & overlays ----------
+function hud() {
+  const F = G.fire, L = G.leader;
+  $('fuelVal').textContent = `${Math.ceil(F.fuel)} / 100`;
+  $('fuelBar').style.width = F.fuel + '%';
+  $('fuelTxt').textContent = F.fuel <= 0 ? `out · ${Math.max(0, 5 - G.out).toFixed(1)}s` : `r ${radius().toFixed(1)}`;
+  $('fuelCell').classList.toggle('low', F.fuel < 20);
+  const si = stormInfo();
+  $('stormCell').classList.toggle('storm', !!si.active);
+  if (si.done) { $('stormLab').textContent = 'Storms'; $('stormVal').textContent = 'Passed'; $('stormSub').textContent = ''; }
+  else if (si.active) { $('stormLab').textContent = 'Storm'; $('stormVal').textContent = `${Math.ceil(si.left)}s left`; $('stormSub').textContent = `Storm ${si.i + 1} of ${G.storms.length} · ×2 burn, chill, drifting`; }
+  else { $('stormLab').textContent = 'Next storm'; $('stormVal').textContent = `${Math.ceil(si.next)}s`; $('stormSub').textContent = `Storm ${si.i + 1} of ${G.storms.length}`; }
+  const slots = $('slots');
+  if (slots.children.length !== P.carry) { slots.innerHTML = ''; for (let i = 0; i < P.carry; i++) slots.appendChild(document.createElement('span')); }
+  [...slots.children].forEach((el, i) => { el.className = 'slot ' + (L.carry[i] || ''); });
+  $('carryN').textContent = `${L.carry.length}/${P.carry}`;
+  const pile = G.stock.items.length;
+  $('carryFuel').textContent = `+${L.carry.reduce((s, it) => s + fuelOf(it), 0)} fuel${pile ? ` · pile ${pile}` : ''}`;
+  $('coldVal').textContent = `${Math.round(L.cold)}%`;
+  $('coldBar').style.width = L.cold + '%';
+  const res = G.surv.filter(s => s.state === 'rescued').length, lost = G.surv.filter(s => s.state === 'dead').length;
+  $('survTxt').textContent = `${res}/${G.surv.length} rescued${lost ? ` · ${lost} lost` : ''}`;
+}
+
+function toggleHeat() {
+  G.showHeat = !G.showHeat;
+  $('ov').classList.toggle('peek', G.showHeat);
+}
+function drawFuelChart(cvs, hoverX) {
+  const w = cvs.clientWidth, h = cvs.clientHeight, d = window.devicePixelRatio || 1;
+  if (!w) return;
+  if (cvs.width !== Math.round(w*d)) { cvs.width = Math.round(w*d); cvs.height = Math.round(h*d); }
+  const c = cvs.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0); c.clearRect(0, 0, w, h);
+  const m = {l: 32, r: 40, t: 18, b: 22}, pw = w - m.l - m.r, ph = h - m.t - m.b;
+  const log = G.fuelLog, tEnd = Math.max(1, log[log.length - 1][0]);
+  const X = t => m.l + t/tEnd*pw, Y = f => m.t + (1 - f/100)*ph;
+  const font = bodyFont();
+  c.font = `11px ${font}`; c.textBaseline = 'alphabetic';
+  for (const s of G.storms) {
+    if (s.at >= tEnd) continue;
+    const a = X(s.at), b = X(Math.min(s.at + s.dur, tEnd));
+    c.fillStyle = 'rgba(140,196,239,0.12)'; c.fillRect(a, m.t, b - a, ph);
+    c.fillStyle = '#8fa3bc'; c.textAlign = 'left'; c.fillText('storm', a + 4, m.t - 5);
+  }
+  c.strokeStyle = '#22314a'; c.lineWidth = 1; c.textAlign = 'right';
+  for (const f of [0, 50, 100]) { c.beginPath(); c.moveTo(m.l, Math.round(Y(f)) + 0.5); c.lineTo(m.l + pw, Math.round(Y(f)) + 0.5); c.stroke(); c.fillStyle = '#8fa3bc'; c.fillText(f, m.l - 6, Y(f) + 4); }
+  c.textAlign = 'center';
+  const stepT = tEnd > 150 ? 60 : 30;
+  for (let t = 0; t <= tEnd + 0.01; t += stepT) c.fillText(fmt(t), X(t), h - 6);
+  const grad = c.createLinearGradient(0, m.t, 0, m.t + ph);
+  grad.addColorStop(0, 'rgba(255,138,61,0.32)'); grad.addColorStop(1, 'rgba(255,138,61,0.02)');
+  c.beginPath(); c.moveTo(X(log[0][0]), Y(0));
+  for (const [t, f] of log) c.lineTo(X(t), Y(f));
+  c.lineTo(X(log[log.length - 1][0]), Y(0)); c.closePath(); c.fillStyle = grad; c.fill();
+  c.beginPath(); log.forEach(([t, f], i) => i ? c.lineTo(X(t), Y(f)) : c.moveTo(X(t), Y(f)));
+  c.strokeStyle = '#ff8a3d'; c.lineWidth = 2; c.lineJoin = 'round'; c.stroke();
+  const [lt, lf] = log[log.length - 1];
+  c.fillStyle = '#121c2e'; c.beginPath(); c.arc(X(lt), Y(lf), 5, 0, 7); c.fill();
+  c.fillStyle = '#ff8a3d'; c.beginPath(); c.arc(X(lt), Y(lf), 3.5, 0, 7); c.fill();
+  c.fillStyle = '#e2ecf5'; c.textAlign = 'left'; c.font = `600 11px ${font}`; c.fillText(Math.round(lf), X(lt) + 8, Y(lf) + 4);
+  if (hoverX != null && hoverX >= m.l && hoverX <= m.l + pw) {
+    const tt = (hoverX - m.l)/pw*tEnd;
+    let best = log[0]; for (const p of log) if (Math.abs(p[0] - tt) < Math.abs(best[0] - tt)) best = p;
+    const hx = X(best[0]), hy = Y(best[1]);
+    c.strokeStyle = 'rgba(226,236,245,0.35)'; c.beginPath(); c.moveTo(Math.round(hx) + 0.5, m.t); c.lineTo(Math.round(hx) + 0.5, m.t + ph); c.stroke();
+    c.fillStyle = '#121c2e'; c.beginPath(); c.arc(hx, hy, 5, 0, 7); c.fill();
+    c.fillStyle = '#ffc46b'; c.beginPath(); c.arc(hx, hy, 3.5, 0, 7); c.fill();
+    const label = `${fmt(best[0])} · fuel ${Math.round(best[1])}`;
+    c.font = `600 11px ${font}`; const tw = c.measureText(label).width + 12;
+    const bx = clamp(hx - tw/2, 2, w - tw - 2), by = hy > m.t + 30 ? hy - 30 : hy + 10;
+    c.fillStyle = 'rgba(7,12,22,0.92)'; rr(c, bx, by, tw, 20, 4); c.fill(); c.strokeStyle = '#22314a'; c.stroke();
+    c.fillStyle = '#e2ecf5'; c.textAlign = 'left'; c.fillText(label, bx + 6, by + 14);
+  }
+}
+function showOverlay() {
+  const ov = $('ov');
+  ov.className = 'overlay';
+  if (G.phase === 'play') { ov.hidden = true; return; }
+  ov.hidden = false;
+  if (G.phase === 'ready') {
+    ov.innerHTML = `<div class="card"><h2>First Night</h2>
+      <p>The fire is down to ${P.startFuel}%. Someone is freezing just west of it. A storm hits in ${P.storm1} seconds.</p>
+      <p class="hint">Push into snow to shovel through it, into trees to chop, into the fire to feed it. Hold two keys to dig diagonally. Bring dug-out survivors into the warmth; once thawed, stand next to one and press Space to give them a job.</p>
+      <p class="go">Press an arrow key or WASD to start</p></div>`;
+  } else if (G.phase === 'paused') {
+    ov.innerHTML = `<div class="card"><h2>Paused</h2><p class="go">Esc to resume · R to restart</p></div>`;
+  } else {
+    const r = G.result;
+    ov.classList.add(r.win ? 'win' : 'lose');
+    const st = [0, 1, 2].map(i => `<span class="${i < r.stars ? '' : 'off'}">★</span>`).join('');
+    ov.innerHTML = `<div class="card"><h2>${r.win ? 'Survived the night' : 'Frozen out'}</h2>
+      ${r.win ? `<div class="stars" aria-label="${r.stars} of 3 stars">${st}</div>` : ''}
+      <p>${r.reason}</p>
+      <div class="stats">
+        <div class="stat"><span>First rescue</span><b>${G.firstRescue === null ? 'None' : fmt(G.firstRescue)}</b></div>
+        <div class="stat"><span>Survived</span><b>${fmt(G.t)}</b></div>
+        <div class="stat"><span>Rescued</span><b>${r.rescued}/${r.total}${r.lost ? ` · ${r.lost} lost` : ''}</b></div>
+      </div>
+      <div class="chartbox"><div class="ct"><span>Fire fuel over the night</span><span>0–100</span></div><canvas id="fuelChart" tabindex="0" aria-label="Line chart of fire fuel over time, ending at ${Math.round(r.fuel)}"></canvas></div>
+      <button class="btn" id="heatBtn" type="button">Show where you walked (H)</button>
+      ${r.win ? `<p class="hint">Stars: win · rescue everyone · finish with fuel above 50</p>` : ''}
+      <p class="go">Press R to play again</p></div>
+      <div class="peekbar"><span>Where you walked · brighter means more time spent</span><button class="btn" id="heatBack" type="button">Back to results (H)</button></div>`;
+    const ch = $('fuelChart');
+    requestAnimationFrame(() => drawFuelChart(ch));
+    ch.addEventListener('pointermove', e => drawFuelChart(ch, e.offsetX));
+    ch.addEventListener('pointerleave', () => drawFuelChart(ch));
+    $('heatBtn').addEventListener('click', toggleHeat);
+    $('heatBack').addEventListener('click', toggleHeat);
+  }
+}
+
+// ---------- tuning ----------
+function buildTune() {
+  const box = $('tune'); box.innerHTML = '';
+  for (const [key, label, unit, min, max, step] of SPEC) {
+    const l = document.createElement('label');
+    l.innerHTML = `<span class="row"><span>${label}</span><output id="o_${key}"></output></span><input type="range" id="t_${key}" min="${min}" max="${max}" step="${step}"><small>${unit} · spec ${DEF[key]}</small>`;
+    box.appendChild(l);
+    const inp = l.querySelector('input'), out = l.querySelector('output');
+    inp.value = P[key]; out.textContent = P[key];
+    inp.addEventListener('input', () => { P[key] = +inp.value; out.textContent = P[key]; save(); if (G.phase === 'ready') showOverlay(); });
+  }
+}
+$('restartBtn').addEventListener('click', e => { newGame(); e.currentTarget.blur(); });
+$('resetBtn').addEventListener('click', e => { P = Object.assign({}, DEF); save(); buildTune(); newGame(); e.currentTarget.blur(); });
+
+// ---------- loop ----------
+// Fixed 60Hz simulation; drawing blends between the last two ticks so motion stays smooth at any refresh rate.
+const STEP = 1/60;
+let last = performance.now(), acc = 0;
+buildTune();
+setMuted(AU.muted);
+newGame();
+resize();
+function frame(ts) {
+  const dt = Math.min(0.25, (ts - last)/1000);
+  acc += dt; last = ts;
+  while (acc >= STEP) { update(STEP); acc -= STEP; }
+  render(ts/1000); hud(); audioTick(dt);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+// Test hook for automated checks; harmless in play.
+window.__frost = { get G() { return G; }, P };
+})();
+</script>
+
+</body></html>
