@@ -178,7 +178,7 @@ kbd{display:inline-block;min-width:22px;padding:1px 6px;margin-right:6px;border-
 #debug h4{margin:10px 0 4px;font:600 11px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 #dbgInfo{display:grid;grid-template-columns:auto 1fr;gap:1px 12px;margin:0;font-variant-numeric:tabular-nums}
 #dbgInfo dt{color:var(--muted)}#dbgInfo dd{margin:0;min-width:0;overflow-wrap:anywhere}
-.dbg-btns{display:flex;flex-wrap:wrap;gap:5px}.dbg-tod{display:flex;align-items:center;gap:8px;font-size:12px}.dbg-tod input[type=range]{flex:1}
+.dbg-btns{display:flex;flex-wrap:wrap;gap:5px}.dbg-ver{font-size:12px;color:var(--muted);margin:-4px 0 8px;font-variant-numeric:tabular-nums}.dbg-ver b{color:var(--brass)}.dbg-snap{width:100%;height:120px;margin-top:6px;font:11px ui-monospace,monospace;background:rgba(0,0,0,.4);color:#e8dcc0;border:1px solid rgba(255,255,255,.15);border-radius:4px}.dbg-tod{display:flex;align-items:center;gap:8px;font-size:12px}.dbg-tod input[type=range]{flex:1}
 #debug button{font:600 12px ui-monospace,Menlo,Consolas,monospace;color:#cfe3c4;background:#16241b;border:1px solid rgba(140,192,110,.4);border-radius:4px;padding:4px 8px;cursor:pointer}
 #debug button:hover{background:#1f3426}#debug button.here{background:var(--good);color:#0e1411}
 #debug button:focus-visible,#debug input:focus-visible{outline:2px solid var(--good);outline-offset:1px}
@@ -237,6 +237,7 @@ i.up{color:#8fd07a;font-style:normal}i.dn{color:#e88a7a;font-style:normal}
   <div id="sound" class="hud"><button id="sndBtn" class="snd card" aria-pressed="true">Sound on · M</button><button id="musBtn" class="snd card" aria-pressed="true">Music on</button><button id="fxBtn" class="snd card" aria-pressed="true">Effects full</button></div>
   <div id="debug" class="hud card" hidden>
     <h3>Debug console <span class="dbg-key">` to close</span></h3>
+    <div id="dbgVer" class="dbg-ver"></div>
     <h4>Performance</h4><div id="dbgPerf" class="dbg-perf"></div>
     <dl id="dbgInfo"></dl>
     <h4>Teleport</h4><div class="dbg-btns" id="dbgTp"></div>
@@ -246,6 +247,9 @@ i.up{color:#8fd07a;font-style:normal}i.dn{color:#e88a7a;font-style:normal}
     <h4>World seed</h4>
     <div class="dbg-seed"><input id="dbgSeed" aria-label="World seed" spellcheck="false" maxlength="32"><button id="dbgLoad">Load</button><button id="dbgRand">Random</button></div>
     <div id="dbgLink"></div>
+    <h4>Snapshot</h4><div class="dbg-btns"><button id="dbgSnap">Download game state (JSON)</button><button id="dbgSnapCopy">Copy JSON</button></div>
+    <div id="dbgSnapInfo" class="dbg-note">Everything at this moment: version, seed, the full save, and what's live in this land (you, monsters, people, wagons, drops).</div>
+    <textarea id="dbgSnapText" class="dbg-snap" readonly hidden aria-label="Game state JSON"></textarea>
     <h4>Save</h4><div class="dbg-btns"><button id="dbgSave">Save now</button><button id="dbgReset">Delete save &amp; restart this world</button></div><div id="dbgSaveInfo" class="dbg-note"></div>
     <h4>Overlays</h4><div class="dbg-btns"><button id="dbgEnc">Show outpost enclosures</button></div><div class="dbg-note">Green: what an outpost’s walls enclose. Red: the open ground reachable from its door when the ring isn’t closed. Gold: gates. Also on the minimap.</div>
     <h4>Cheats</h4><div class="dbg-btns"><button id="dbgCoins">+500 coins</button><button id="dbgPass">Gate pass + pickaxe</button><button id="dbgHeal">Heal</button><button id="dbgMats">+50 wood &amp; stone</button></div>
@@ -278,6 +282,7 @@ i.up{color:#8fd07a;font-style:normal}i.dn{color:#e88a7a;font-style:normal}
 <script>
 (()=>{
 'use strict';
+const GAME_VERSION='47',GAME_BUILD='2026-11-01 10:33 UTC',GAME_HASH='987e02e';
 /* =====================================================================
    core.js — canvas setup, maths, shared state, item/monster catalogue, icons
    ===================================================================== */
@@ -4374,6 +4379,33 @@ let dbgT=0,fpsN=0,fpsT=0,fps=0;
 const cleanSeed=v=>String(v).replace(/[^A-Za-z0-9._~-]/g,'').slice(0,32);
 function tpTarget(rg){if(rg.start)return rg.start;const e=rg.exits.find(x=>!x.portal)||rg.exits[0];return e.arrive;}
 function buildTp(){dbgTp.innerHTML=WM.lands.map(L=>REG[L.id]).map(rg=>`<button data-tp="${rg.id}" class="${rg===cur?'here':''}">${rg.name} · ${rg.land.depth}</button>`).join('');}
+/* ---------- version and snapshots ---------- */
+$('dbgVer').innerHTML=`Hollowmere <b>v${GAME_VERSION}</b> · built ${GAME_BUILD} · ${GAME_HASH} · save format ${SAVE_V}`;
+// plain values only, so a live entity flattens without dragging its references (regions, targets, paths) along
+const flat=o=>{const r={};for(const k in o){const v=o[k];if(v===null||typeof v==='number'||typeof v==='string'||typeof v==='boolean')r[k]=v;}return r;};
+function gameSnapshot(){const live={region:{id:cur.id,name:cur.name,land:cur.land?cur.land.id:null},
+    player:Object.assign(flat(S),{inv:Object.assign({},S.inv),equip:S.equip.slice(),bar:S.bar.slice(),armor:Object.assign({},S.armor),mag:Object.assign({},S.mag)}),
+    monsters:cur.monsters.map(flat),townsfolk:cur.npcs.map(flat),keepers:cur.keepers.map(flat),adventurers:cur.adv.map(a=>Object.assign(flat(a),{party:a.p?a.p.name:null})),
+    workers:workers.map(w=>Object.assign(flat(w),{land:w.rg?w.rg.id:null,base:w.base?w.base.id:null,carry:w.carry})),soldiers:soldiers.map(s=>Object.assign(flat(s),{land:s.rg?s.rg.id:null})),
+    wagons:wagons.map(w=>Object.assign(flat(w),{land:w.rg?w.rg.id:null,stock:Object.assign({},w.stock)})),pickups:cur.pickups.map(flat),
+    projectiles:{player:bullets.length,enemy:cur.ebolts.length,friendly:cur.fbolts.length}};
+  return{game:'Hollowmere',version:GAME_VERSION,build:GAME_BUILD,hash:GAME_HASH,saveFormat:SAVE_V,takenAt:new Date().toISOString(),seed:SEED_LABEL,
+    worldTime:wtime(),worldHours:WM.t,timeOfDay:{shown:skyH,override:DBG_TOD},settings:{effects:FX_FULL?'full':'reduced'},
+    perf:{fps,world:PERF.world,save:PERF.save,saveKB:PERF.saveKB,load:PERF.load,particles:FXP.length},live,save:buildSave()};}
+const snapName=()=>{const h=(WM.t+8)%24,d=Math.floor((WM.t+8)/24)+1;return`hollowmere-v${GAME_VERSION}-${cleanSeed(SEED_LABEL)||'world'}-day${d}-${String(Math.floor(h)).padStart(2,'0')}${String(Math.floor((h%1)*60)).padStart(2,'0')}.json`;};
+function snapInfo(t){$('dbgSnapInfo').textContent=t;}
+// inside claude.ai the viewer saves files through the page's downloads capability; opened as a plain file, a normal download link works
+async function snapDownload(){const js=JSON.stringify(gameSnapshot(),null,1),name=snapName(),kb=Math.round(js.length/1024);
+  let dl=null;try{if(window.claude&&window.claude.use)dl=await window.claude.use('downloads');}catch(e){dl=null;}
+  if(dl){snapInfo(`Saving ${name} (${kb} KB)…`);try{await dl.save({filename:name,data:js});snapInfo(`Saved ${name} (${kb} KB).`);}
+    catch(e){const c=e&&e.code;if(c==='declined')snapInfo('Not saved.');else if(c==='rate_limited')snapInfo('A save is already waiting for an answer. Try again in a moment.');else snapShow(js,name);}return;}
+  if(window.claude){snapShow(js,name);return;}   // inside a viewer that can't save files: hand it over as text
+  try{const u=URL.createObjectURL(new Blob([js],{type:'application/json'})),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);
+    snapInfo(`Saved ${name} (${kb} KB).`);}catch(e){snapShow(js,name);}}
+function snapShow(js,name){const ta=$('dbgSnapText');ta.hidden=false;ta.value=js;ta.focus();ta.select();snapInfo(`${name}: select all in the box below and copy it.`);}
+function snapCopy(){const js=JSON.stringify(gameSnapshot(),null,1),name=snapName(),kb=Math.round(js.length/1024);
+  const fail=()=>snapShow(js,name);try{if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(js).then(()=>snapInfo(`Copied ${name} to the clipboard (${kb} KB).`),fail);else fail();}catch(e){fail();}}
+window.hollowmereSnapshot=gameSnapshot;   // also reachable from the browser console
 /* ---------- performance ---------- */
 let perfT=0;
 const ms=v=>v==null?'—':v<10?v.toFixed(1)+' ms':Math.round(v)+' ms';
@@ -4418,7 +4450,7 @@ function debugTick(dt){fpsN++;fpsT+=dt;if(fpsT>=1){fps=Math.round(fpsN/fpsT);fps
 dbgEl.addEventListener('pointerdown',e=>e.stopPropagation());
 function todUI(){const on=$('dbgTodOn').checked,v=+$('dbgTod').value;DBG_TOD=on?v:null;const h=on?v:((WM.t+8)%24);$('dbgTodTxt').textContent=`${String(Math.floor(h)).padStart(2,'0')}:${String(Math.floor((h%1)*60)).padStart(2,'0')}${on?'':' (clock)'}`;}
 dbgEl.addEventListener('input',e=>{if(e.target.id==='dbgTod'){$('dbgTodOn').checked=true;todUI();}else if(e.target.id==='dbgTodOn')todUI();});
-dbgEl.addEventListener('keydown',e=>{if(e.target.id==='dbgTod')e.stopPropagation();});
+dbgEl.addEventListener('keydown',e=>{if(e.target.id==='dbgTod'||e.target.id==='dbgSnapText')e.stopPropagation();});
 dbgEl.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
   if(b.dataset.tp){const rg=REG[b.dataset.tp];if(!running)start();if(rg.land&&rg.land.dirty)rebuildLand(rg.land,false);const p=tpTarget(rg);S.deadT=0;closePanel();moveRegion(rg,p[0],p[1]);buildTp();refreshDebug();b.blur();return;}
   if(b.dataset.skip){if(!running)start();timeSkip(+b.dataset.skip);buildTp();refreshDebug();b.blur();return;}
@@ -4428,6 +4460,8 @@ dbgEl.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)retu
     case'dbgCoins':S.coins+=500;break;
     case'dbgPass':S.pass=true;passDirty=true;if(!S.equip.includes('pick'))gainTool('pick');break;
     case'dbgHeal':S.hp=S.max;break;
+    case'dbgSnap':snapDownload();break;
+    case'dbgSnapCopy':snapCopy();break;
     case'dbgSave':toast(writeSave()?'Game saved.':'Could not save in this browser.','gold');break;
     case'dbgReset':restartWorld();buildTp();break;
     case'dbgMats':give('wood',50);give('stone',50);break;
